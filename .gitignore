@@ -1,0 +1,38 @@
+# ===== Data =====
+ml/data/
+*.jpg
+*.jpeg
+*.png
+*.zip
+!docs/**/*.png
+
+# ===== Models (nặng, không push lên git) =====
+*.pt
+*.pth
+*.h5
+*.onnx
+ml/models/
+backend/app/models/*.pt
+!backend/app/models/.gitkeep
+
+# ===== Python =====
+__pycache__/
+*.pyc
+venv/
+.venv/
+env/
+*.egg-info/
+.ipynb_checkpoints/
+
+# ===== Node / React =====
+node_modules/
+dist/
+build/
+.env
+.env.local
+
+# ===== OS / IDE =====
+.DS_Store
+.vscode/
+.idea/
+*.log
