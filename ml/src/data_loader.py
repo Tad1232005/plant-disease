@@ -1,13 +1,19 @@
 """
-Định nghĩa Dataset + transform dùng chung cho train.py và evaluate.py.
+Load ảnh từ thư mục đã export + transform/augment dùng chung cho train & evaluate.
+
+Train/evaluate chỉ đọc file ảnh trên disk — không tải lại từ Hugging Face.
 """
 
 from pathlib import Path
+
+from PIL import Image
 from torch.utils.data import Dataset
 from torchvision import transforms
-from PIL import Image
 
-IMAGE_SIZE = 224
+from config import load_config
+
+_cfg = load_config()
+IMAGE_SIZE = _cfg["train"]["image_size"]
 
 train_transform = transforms.Compose([
     transforms.Resize((IMAGE_SIZE, IMAGE_SIZE)),
@@ -15,15 +21,19 @@ train_transform = transforms.Compose([
     transforms.RandomRotation(15),
     transforms.ColorJitter(brightness=0.2, contrast=0.2),
     transforms.ToTensor(),
-    transforms.Normalize(mean=[0.485, 0.456, 0.406],
-                          std=[0.229, 0.224, 0.225]),  # chuẩn ImageNet, phù hợp khi dùng transfer learning
+    transforms.Normalize(
+        mean=[0.485, 0.456, 0.406],
+        std=[0.229, 0.224, 0.225],
+    ),
 ])
 
 eval_transform = transforms.Compose([
     transforms.Resize((IMAGE_SIZE, IMAGE_SIZE)),
     transforms.ToTensor(),
-    transforms.Normalize(mean=[0.485, 0.456, 0.406],
-                          std=[0.229, 0.224, 0.225]),
+    transforms.Normalize(
+        mean=[0.485, 0.456, 0.406],
+        std=[0.229, 0.224, 0.225],
+    ),
 ])
 
 
@@ -33,7 +43,6 @@ class PlantDiseaseDataset(Dataset):
         data_dir/
             Tomato___healthy/
                 img1.jpg
-                img2.jpg
             Tomato___Early_blight/
                 ...
     """
@@ -41,7 +50,7 @@ class PlantDiseaseDataset(Dataset):
     def __init__(self, data_dir, transform=None):
         self.data_dir = Path(data_dir)
         self.transform = transform
-        self.classes = sorted([d.name for d in self.data_dir.iterdir() if d.is_dir()])
+        self.classes = sorted(d.name for d in self.data_dir.iterdir() if d.is_dir())
         self.class_to_idx = {cls_name: i for i, cls_name in enumerate(self.classes)}
 
         self.samples = []

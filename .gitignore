@@ -1,10 +1,19 @@
-# ===== Data =====
+# ===== Data (export ra disk, không push) =====
 ml/data/
 *.jpg
 *.jpeg
 *.png
 *.zip
 !docs/**/*.png
+
+# ===== ML outputs (logs, figures — giữ cấu trúc thư mục) =====
+ml/outputs/logs/*
+ml/outputs/figures/*
+!ml/outputs/logs/.gitkeep
+!ml/outputs/figures/.gitkeep
+!ml/outputs/metrics.json
+!ml/outputs/figures/confusion_matrix.png
+!ml/outputs/figures/confusion_matrix_errors.png
 
 # ===== Models (nặng, không push lên git) =====
 *.pt
@@ -36,3 +45,7 @@ build/
 .vscode/
 .idea/
 *.log
+
+# ===== Ghi chú flow cá nhân (không push) =====
+ml/FLOW.local.md
+.cursorrules
