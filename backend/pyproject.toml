@@ -1,0 +1,22 @@
+[tool.mypy]
+python_version = "3.12"
+mypy_path = "."
+explicit_package_bases = true
+ignore_missing_imports = true
+strict_optional = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+
+[tool.pylint.main]
+init-hook = "import sys; sys.path.append('.')"
+
+[tool.pylint.messages_control]
+disable = ["C0114", "C0115", "C0116"]
+
+[[tool.mypy.overrides]]
+module = [
+    "jose.*",
+    "passlib.*",
+    "alembic.*"
+]
+ignore_missing_imports = true
