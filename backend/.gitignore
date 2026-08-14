@@ -26,3 +26,8 @@ storage/uploads/*
 storage/gradcam/*
 !storage/uploads/.gitkeep
 !storage/gradcam/.gitkeep
+
+# Models
+app/models/best_model.pt
+app/models/classes.json
+

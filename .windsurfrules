@@ -1,0 +1,13 @@
+# LUẬT DÀNH CHO AGENT (Addy Osmani's Agent Skills Port)
+
+## 1. Skill: Planning (Lập kế hoạch)
+- TRƯỚC KHI viết code, hãy đọc các file liên quan trong codebase.
+- Tạo một kế hoạch từng bước (Step-by-step plan) và hỏi người dùng có đồng ý không trước khi thực thi.
+
+## 2. Skill: Shell Execution (Chạy Terminal)
+- Nếu cần cài thư viện mới (npm install), hãy tự động mở terminal và chạy lệnh.
+- Nếu server bị lỗi, hãy đọc log trong terminal để tự tìm cách sửa.
+
+## 3. Skill: Review & Self-Correction (Tự đánh giá)
+- Sau khi viết code, tự động kiểm tra xem có biến nào chưa khai báo (`undefined`), có quên `async/await` không.
+- Không để lại code rác (VD: `// console.log("test")`).
