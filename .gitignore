@@ -47,6 +47,6 @@ build/
 *.log
 
 # ===== Ghi chú flow cá nhân (không push) =====
-# ml/FLOW.local.md
 .cursorrules
-# .windsurfrules
+ml/FLOW.local.md
+.windsurfrules
