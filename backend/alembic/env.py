@@ -18,6 +18,15 @@ sys.path.insert(0, os.path.abspath("."))
 from app.core.config import settings  # type: ignore # noqa: E402
 from app.db.base import Base  # type: ignore # noqa: E402
 from app.models.user import User  # type: ignore # noqa: E402, F401
+from app.models.farm import Farm  # type: ignore # noqa: E402, F401
+from app.models.disease_info import (  # type: ignore # noqa: E402, F401
+    DiseaseInfo,
+)
+from app.models.scan import Scan  # type: ignore # noqa: E402, F401
+from app.models.scan_topk import ScanTopK  # type: ignore # noqa: E402, F401
+from app.models.model_version import (  # type: ignore # noqa: E402, F401
+    ModelVersion,
+)
 
 # 2. Lấy đối tượng Alembic Config
 config = context.config

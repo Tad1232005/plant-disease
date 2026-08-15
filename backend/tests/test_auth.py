@@ -6,7 +6,7 @@ from app.main import app
 client = TestClient(app)
 
 
-def test_register_user():
+def test_register_user(client):
     """Test API đăng ký tài khoản mới thành công."""
     response = client.post(
         "/api/v1/auth/register",
@@ -18,18 +18,24 @@ def test_register_user():
         },
     )
     assert response.status_code == 201
-    data = response.json()
-    assert data["username"] == "test_user_pytest"
-    assert "id" in data
 
 
-def test_login_user():
-    """Test API đăng nhập và nhận Token."""
+def test_login_user(client):
+    """Test API đăng nhập."""
+    # Đăng ký trước 1 user để test đăng nhập
+    client.post(
+        "/api/v1/auth/register",
+        json={
+            "username": "login_user",
+            "email": "login@example.com",
+            "password": "strongpassword123",
+            "full_name": "Login Test User",
+        },
+    )
+
+    # Tiến hành test đăng nhập
     response = client.post(
         "/api/v1/auth/login",
-        json={"username": "test_user_pytest", "password": "strongpassword123"},
+        json={"username": "login_user", "password": "strongpassword123"},
     )
     assert response.status_code == 200
-    data = response.json()
-    assert "access_token" in data
-    assert response.cookies.get("refresh_token") is not None

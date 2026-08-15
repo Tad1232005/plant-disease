@@ -20,6 +20,10 @@ class Settings(BaseSettings):
         "http://127.0.0.1:5173",
     ]
 
+    MODEL_PATH: str = "app/ml_assets/best_model.pt"
+    CLASSES_PATH: str = "app/ml_assets/classes.json"
+    CONFIDENCE_THRESHOLD: float = 0.5  # ngưỡng OOD
+
     model_config = SettingsConfigDict(
         env_file=".env",
         case_sensitive=False,
