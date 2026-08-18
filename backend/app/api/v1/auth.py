@@ -1,5 +1,7 @@
 """Module định nghĩa các API Endpoints cho việc xác thực người dùng."""
 
+from typing import Dict
+
 from fastapi import (
     APIRouter,
     Depends,
@@ -11,12 +13,15 @@ from fastapi import (
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user
-from app.core.security import create_access_token, decode_token
 from app.db.session import get_db
 from app.models.user import User
 from app.schemas.auth import LoginRequest, TokenResponse
 from app.schemas.user import UserCreate, UserResponse
-from app.services.auth_service import authenticate_user, register_user
+from app.services.auth_service import (
+    authenticate_user,
+    refresh_access_token,
+    register_user,
+)
 
 router = APIRouter(prefix="/auth", tags=["Auth"])
 
@@ -40,7 +45,7 @@ def login(
     response: Response,
     db: Session = Depends(get_db),
 ) -> TokenResponse:
-    """Endpoint đăng nhập và thiết lập Refresh Token trong Cookie."""
+    """Endpoint đăng nhập và thiết lập Refresh Token trong HttpOnly Cookie."""
     access_token, refresh_token, _ = authenticate_user(
         db,
         form_data.username,
@@ -52,6 +57,7 @@ def login(
         httponly=True,
         max_age=7 * 24 * 60 * 60,
         samesite="lax",
+        path="/api/v1/auth/refresh",
     )
     return TokenResponse(access_token=access_token)
 
@@ -61,42 +67,26 @@ def refresh(
     request: Request,
     db: Session = Depends(get_db),
 ) -> TokenResponse:
-    """Tạo access token mới từ refresh token trong cookie."""
-    refresh_token_cookie = request.cookies.get("refresh_token")
-    if not refresh_token_cookie:
+    """Tạo Access Token mới từ Refresh Token trong Cookie."""
+    refresh_token = request.cookies.get("refresh_token")
+    if not refresh_token:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Refresh token missing",
+            detail="Refresh token missing in cookies",
         )
 
-    payload = decode_token(refresh_token_cookie)
+    new_access_token = refresh_access_token(db, refresh_token)
+    return TokenResponse(access_token=new_access_token)
 
-    if payload.get("type") != "refresh":
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Token type invalid",
-        )
 
-    subject = payload.get("sub")
-    if not subject:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Token missing subject",
-        )
-
-    user = (
-        db.query(User)
-        .filter(User.username == str(subject))
-        .first()
+@router.post("/logout")
+def logout(response: Response) -> Dict[str, str]:
+    """Endpoint đăng xuất, xóa Refresh Token khỏi Cookie."""
+    response.delete_cookie(
+        key="refresh_token",
+        path="/api/v1/auth/refresh",
     )
-    if user is None:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="User not found",
-        )
-
-    access_token = create_access_token(user.username)
-    return TokenResponse(access_token=access_token)
+    return {"message": "Logged out successfully"}
 
 
 @router.get("/me", response_model=UserResponse)

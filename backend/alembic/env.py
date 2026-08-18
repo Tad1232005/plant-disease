@@ -1,6 +1,7 @@
 """Module cấu hình môi trường Alembic Migration cho CSDL."""
 
-# pylint: disable=import-error, wrong-import-position, no-member
+# mypy: ignore-errors
+# pylint: disable=no-member, import-error, wrong-import-position
 
 from __future__ import annotations
 
@@ -14,24 +15,13 @@ from sqlalchemy import engine_from_config, pool
 # 1. Thêm thư mục gốc dự án vào Python Path
 sys.path.insert(0, os.path.abspath("."))
 
-# Thêm type: ignore để Pylance/MyPy không báo gạch đỏ IDE
-from app.core.config import settings  # type: ignore # noqa: E402
-from app.db.base import Base  # type: ignore # noqa: E402
-from app.models.user import User  # type: ignore # noqa: E402, F401
-from app.models.farm import Farm  # type: ignore # noqa: E402, F401
-from app.models.disease_info import (  # type: ignore # noqa: E402, F401
-    DiseaseInfo,
-)
-from app.models.scan import Scan  # type: ignore # noqa: E402, F401
-from app.models.scan_topk import ScanTopK  # type: ignore # noqa: E402, F401
-from app.models.model_version import (  # type: ignore # noqa: E402, F401
-    ModelVersion,
-)
+# 2. Import package Models & App config
+import app.models  # noqa: F401, E402 # pylint: disable=unused-import
+from app.core.config import settings  # noqa: E402
+from app.db.base import Base  # noqa: E402
 
-# 2. Lấy đối tượng Alembic Config
+# 3. Lấy đối tượng Alembic Config & Ép kiểu URL cho Pydantic v2
 config = context.config
-
-# 3. Ép kiểu str() để đảm bảo tương thích tuyệt đối với Pydantic v2
 config.set_main_option("sqlalchemy.url", str(settings.DATABASE_URL))
 
 # Cấu hình logging
@@ -51,7 +41,7 @@ def run_migrations_offline() -> None:
         literal_binds=True,
         dialect_opts={"paramstyle": "named"},
         compare_type=True,
-        render_as_batch=True,  # Bắt buộc cho SQLite
+        render_as_batch=True,
     )
 
     with context.begin_transaction():
@@ -71,7 +61,7 @@ def run_migrations_online() -> None:
             connection=connection,
             target_metadata=target_metadata,
             compare_type=True,
-            render_as_batch=True,  # Bắt buộc cho SQLite
+            render_as_batch=True,
         )
 
         with context.begin_transaction():

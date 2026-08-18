@@ -1,8 +1,11 @@
 """Cấu hình ứng dụng, đọc giá trị từ file .env."""
 
+from pathlib import Path
 from typing import List
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+BASE_DIR = Path(__file__).resolve().parent.parent.parent
 
 
 class Settings(BaseSettings):
@@ -20,8 +23,8 @@ class Settings(BaseSettings):
         "http://127.0.0.1:5173",
     ]
 
-    MODEL_PATH: str = "app/ml_assets/best_model.pt"
-    CLASSES_PATH: str = "app/ml_assets/classes.json"
+    MODEL_PATH: str = str(BASE_DIR / "app" / "ml_assets" / "best_model.pt")
+    CLASSES_PATH: str = str(BASE_DIR / "app" / "ml_assets" / "classes.json")
     CONFIDENCE_THRESHOLD: float = 0.5  # ngưỡng OOD
 
     model_config = SettingsConfigDict(

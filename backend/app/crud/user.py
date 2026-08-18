@@ -30,6 +30,7 @@ def create_user(db: Session, user_in: UserCreate) -> User:
     db_user = User(
         username=user_in.username,
         email=email_value,
+        full_name=user_in.full_name,
         password_hash=hash_password(user_in.password),
         role="user",
     )

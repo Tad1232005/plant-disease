@@ -1,11 +1,14 @@
 """Module chứa logic nghiệp vụ xử lý xác thực và đăng ký người dùng."""
 
+from typing import Tuple
+
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.core.security import (
     create_access_token,
     create_refresh_token,
+    decode_token,
     verify_password,
 )
 from app.crud.user import create_user, get_user_by_email, get_user_by_username
@@ -34,7 +37,7 @@ def authenticate_user(
     db: Session,
     username: str,
     password: str,
-) -> tuple[str, str, User]:
+) -> Tuple[str, str, User]:
     """Xác thực thông tin đăng nhập và khởi tạo cặp token."""
     user = get_user_by_username(db, username)
     if user is None:
@@ -60,3 +63,30 @@ def authenticate_user(
     refresh_token = create_refresh_token(user.username)
 
     return access_token, refresh_token, user
+
+
+def refresh_access_token(db: Session, refresh_token: str) -> str:
+    """Xác thực refresh token từ cookie và cấp lại access token mới."""
+    payload = decode_token(refresh_token)
+
+    if payload.get("type") != "refresh":
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Token type không hợp lệ",
+        )
+
+    username = payload.get("sub")
+    if not username:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Token thiếu thông tin người dùng",
+        )
+
+    user = get_user_by_username(db, str(username))
+    if user is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Người dùng không tồn tại",
+        )
+
+    return create_access_token(user.username)

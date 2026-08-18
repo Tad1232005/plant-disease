@@ -1,14 +1,13 @@
 """Module chứa các dependencies xử lý xác thực người dùng và RBAC."""
 
 from collections.abc import Callable
-from typing import Optional
 
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.orm import Session
 
 from app.core.security import decode_token
-from app.crud.user import get_user_by_id
+from app.crud.user import get_user_by_id, get_user_by_username
 from app.db.session import get_db
 from app.models.user import User
 
@@ -26,23 +25,23 @@ def get_current_user(
         headers={"WWW-Authenticate": "Bearer"},
     )
 
-    payload = decode_token(token)
+    try:
+        payload = decode_token(token)
+    except Exception as exc:
+        raise credentials_exception from exc
 
     if payload.get("type") != "access":
         raise credentials_exception
 
-    subject: Optional[str] = payload.get("sub")
-    if subject is None:
+    subject: str | None = payload.get("sub")
+    if not subject:
         raise credentials_exception
 
-    if str(subject).isdigit():
+    # Gọi qua CRUD Layer thay vì query DB trực tiếp
+    if subject.isdigit():
         user = get_user_by_id(db, int(subject))
     else:
-        user = (
-            db.query(User)
-            .filter(User.username == str(subject))
-            .first()
-        )
+        user = get_user_by_username(db, subject)
 
     if user is None:
         raise credentials_exception

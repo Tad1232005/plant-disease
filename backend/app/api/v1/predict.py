@@ -24,4 +24,4 @@ async def predict_plant_disease(file: UploadFile = File(...)):
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Lỗi xử lý AI: {str(e)}",
-        )
+        ) from e
