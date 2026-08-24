@@ -59,14 +59,14 @@ def authenticate_user(
             detail="Sai tên đăng nhập hoặc mật khẩu",
         )
 
-    access_token = create_access_token(user.username)
-    refresh_token = create_refresh_token(user.username)
+    access_token = create_access_token(user.id, role=user.role)
+    refresh_token = create_refresh_token(user.id, user.token_version)
 
     return access_token, refresh_token, user
 
 
-def refresh_access_token(db: Session, refresh_token: str) -> str:
-    """Xác thực refresh token từ cookie và cấp lại access token mới."""
+def refresh_access_token(db: Session, refresh_token: str) -> Tuple[str, str]:
+    """Xác thực, rotate refresh token và cấp access token mới."""
     payload = decode_token(refresh_token)
 
     if payload.get("type") != "refresh":
@@ -75,18 +75,43 @@ def refresh_access_token(db: Session, refresh_token: str) -> str:
             detail="Token type không hợp lệ",
         )
 
-    username = payload.get("sub")
-    if not username:
+    subject = payload.get("sub")
+    token_version = payload.get("token_version")
+    if not subject or not isinstance(token_version, int):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Token thiếu thông tin người dùng",
         )
 
-    user = get_user_by_username(db, str(username))
+    try:
+        user_id = int(subject)
+    except (TypeError, ValueError) as exc:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Token thiếu thông tin người dùng",
+        ) from exc
+
+    user = db.get(User, user_id)
     if user is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Người dùng không tồn tại",
         )
 
-    return create_access_token(user.username)
+    if user.token_version != token_version:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Refresh token đã hết hiệu lực",
+        )
+
+    return (
+        create_access_token(user.id, role=user.role),
+        create_refresh_token(user.id, user.token_version),
+    )
+
+
+def revoke_refresh_tokens(db: Session, user: User) -> None:
+    """Vô hiệu hóa toàn bộ refresh token đã phát hành trước đó của user."""
+    user.token_version += 1
+    db.add(user)
+    db.commit()

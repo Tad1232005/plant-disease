@@ -20,6 +20,7 @@ venv/
 
 # Test
 .pytest_cache/
+.mypy_cache/
 
 # Uploads
 storage/uploads/*

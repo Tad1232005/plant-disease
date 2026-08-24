@@ -1,8 +1,9 @@
 """Schema cho Scan (lịch sử chẩn đoán)."""
 
-from typing import Optional, List
 from datetime import datetime
-from pydantic import BaseModel
+from typing import Optional
+
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class ScanHistoryItem(BaseModel):
@@ -14,24 +15,12 @@ class ScanHistoryItem(BaseModel):
     is_valid_leaf: bool
     created_at: datetime
 
-    class Config:
-        """Cho phép đọc trực tiếp từ SQLAlchemy object."""
-
-        from_attributes = True
-
-
 class ScanTopKItem(BaseModel):
     """1 dòng xác suất trong top-3."""
 
     label: str
     confidence: float
     rank: int
-
-    class Config:
-        """Cho phép đọc trực tiếp từ SQLAlchemy object."""
-
-        from_attributes = True
-
 
 class ScanDetailResponse(BaseModel):
     """Chi tiết đầy đủ 1 lượt scan, kèm tên bệnh và gợi ý xử lý."""
@@ -44,9 +33,9 @@ class ScanDetailResponse(BaseModel):
     created_at: datetime
     disease_name: Optional[str] = None
     treatment: Optional[str] = None
-    top3: List[ScanTopKItem] = []
+    top3: list[ScanTopKItem] = Field(default_factory=list)
+    model_config = ConfigDict(from_attributes=True)
 
-    class Config:
-        """Cho phép đọc trực tiếp từ SQLAlchemy object."""
+    model_config = ConfigDict(from_attributes=True)
 
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)

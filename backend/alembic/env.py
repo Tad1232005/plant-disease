@@ -57,15 +57,23 @@ def run_migrations_online() -> None:
     )
 
     with connectable.connect() as connection:
-        context.configure(
-            connection=connection,
-            target_metadata=target_metadata,
-            compare_type=True,
-            render_as_batch=True,
-        )
+        raw_connection = connection.connection.dbapi_connection
+        is_sqlite = connection.dialect.name == "sqlite"
+        if is_sqlite:
+            raw_connection.execute("PRAGMA foreign_keys=OFF")
+        try:
+            context.configure(
+                connection=connection,
+                target_metadata=target_metadata,
+                compare_type=True,
+                render_as_batch=is_sqlite,
+            )
 
-        with context.begin_transaction():
-            context.run_migrations()
+            with context.begin_transaction():
+                context.run_migrations()
+        finally:
+            if is_sqlite:
+                raw_connection.execute("PRAGMA foreign_keys=ON")
 
 
 if context.is_offline_mode():

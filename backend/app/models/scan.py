@@ -31,7 +31,6 @@ class Scan(Base):
         Integer,
         primary_key=True,
         autoincrement=True,
-        index=True,
     )
 
     # Guest KHÔNG lưu vào DB -> user_id bắt buộc NOT NULL
@@ -39,14 +38,12 @@ class Scan(Base):
         Integer,
         ForeignKey("users.id", ondelete="CASCADE"),
         nullable=False,
-        index=True,
     )
 
     farm_id: Mapped[Optional[int]] = mapped_column(
         Integer,
         ForeignKey("farms.id", ondelete="SET NULL"),
         nullable=True,
-        index=True,
     )
 
     image_path: Mapped[str] = mapped_column(
@@ -58,7 +55,6 @@ class Scan(Base):
     predicted_label: Mapped[Optional[str]] = mapped_column(
         String(50),
         nullable=True,
-        index=True,
     )
 
     confidence: Mapped[Optional[float]] = mapped_column(
@@ -85,7 +81,6 @@ class Scan(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime,
         server_default=func.now(),  # pylint: disable=not-callable
-        index=True,
     )
 
     __table_args__ = (

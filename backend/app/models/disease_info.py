@@ -27,7 +27,6 @@ class DiseaseInfo(Base):
         Integer,
         primary_key=True,
         autoincrement=True,
-        index=True,
     )
 
     label_key: Mapped[str] = mapped_column(
@@ -61,6 +60,11 @@ class DiseaseInfo(Base):
         Integer,
         ForeignKey("users.id", ondelete="SET NULL"),
         nullable=True,
+    )
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime,
+        server_default=func.now(),  # pylint: disable=not-callable
     )
 
     updated_at: Mapped[datetime] = mapped_column(

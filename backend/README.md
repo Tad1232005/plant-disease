@@ -1,39 +1,68 @@
-# Backend — FastAPI
+# Backend Plant Disease API
 
-API phục vụ model nhận diện bệnh lá cây. Endpoint chính: `POST /api/predict`
-Nhận file ảnh, trả về `{ "label": "...", "confidence": 0.94 }`.
+FastAPI + SQLAlchemy + Alembic + SQLite. Phần Tuần 1-2 gồm Auth/JWT/RBAC,
+6 bảng nền tảng, CRUD Farm và CRUD Disease Info.
 
-## 1. Setup môi trường
-```bash
+## Chạy local
+
+```powershell
 cd backend
-python -m venv venv
-source venv/bin/activate   # Windows: venv\Scripts\activate
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
 pip install -r requirements.txt
-```
-
-## 2. Copy model đã train
-Từ thư mục `ml/models/`, copy 2 file sau vào `backend/app/models/`:
-- `best_model.pt`
-- `classes.json`
-
-(Nếu chưa có model, backend sẽ báo lỗi `FileNotFoundError` rõ ràng khi khởi động — cứ liên hệ
-bạn phụ trách ML để lấy 2 file này trước.)
-
-## 3. Chạy server (dev)
-```bash
+Copy-Item .env.example .env
+alembic upgrade head
+python -m scripts.seed_week2
 uvicorn app.main:app --reload
 ```
-Server chạy tại `http://localhost:8000`. Xem docs tự động (Swagger UI) tại
-`http://localhost:8000/docs` — dùng luôn để test upload ảnh mà không cần Postman.
 
-## 4. Test nhanh bằng curl
-```bash
-curl -X POST http://localhost:8000/api/predict \
-  -F "file=@/path/to/leaf_image.jpg"
+- API: `http://127.0.0.1:8000`
+- Swagger: `http://127.0.0.1:8000/docs`
+- OpenAPI JSON: `http://127.0.0.1:8000/openapi.json`
+
+Tài khoản seed local có mật khẩu mặc định `123321`: `admin_user`,
+`manager_user`, `technician_user`, `normal_user`. Không dùng các tài khoản này
+ở production. Có thể đặt biến `SEED_DEMO_PASSWORD` trước khi seed để đổi mật khẩu.
+
+Seed còn tạo đủ 38 bản ghi `disease_info` khớp chính xác với
+`app/ml_assets/classes.json` và một `model_version` demo nếu chưa có. Có thể
+chạy lại lệnh seed nhiều lần; script chỉ thêm dữ liệu thiếu, không ghi đè dữ
+liệu đã được chỉnh sửa.
+
+## Cấu trúc thư mục
+
+```text
+app/
+├── api/v1/endpoints/  # HTTP endpoint theo version
+├── core/              # cấu hình, JWT, password hashing
+├── crud/              # truy vấn dữ liệu thuần
+├── db/                # engine, session, SQLAlchemy Base
+├── models/            # ORM models và constraints
+├── schemas/           # Pydantic request/response schemas
+├── services/          # business logic
+└── main.py            # khởi tạo FastAPI
+alembic/               # migration database
+scripts/               # seed và smoke test chạy thủ công
+tests/                 # test tích hợp tự động
+docs/                  # tài liệu kỹ thuật
 ```
 
-## 5. Chạy bằng Docker (tùy chọn, khi deploy)
-```bash
-docker build -t plant-disease-backend .
-docker run -p 8000:8000 plant-disease-backend
+## Endpoint Tuần 1-2
+
+- Auth: `/api/v1/auth/register`, `/login`, `/refresh`, `/logout`, `/me`
+- Farms: `/api/v1/farms`, `/api/v1/farms/{farm_id}`
+- Disease Info: `/api/v1/disease-info`,
+  `/api/v1/disease-info/{label_key}`
+
+## Test
+
+```powershell
+# Test tích hợp không cần chạy server
+.\.venv\Scripts\python.exe -m pytest -q
+
+# Test trên server thật (chạy seed + uvicorn trước)
+.\.venv\Scripts\python.exe scripts\smoke_week2.py
 ```
+
+Hướng dẫn chi tiết và ma trận kết quả mong đợi nằm tại
+[`docs/backend-guide.md`](docs/backend-guide.md).

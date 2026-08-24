@@ -8,7 +8,7 @@ from app.schemas.farm import FarmCreate, FarmUpdate
 def create_farm(db: Session, user_id: int, farm_in: FarmCreate) -> Farm:
     """Tạo mới 1 farm thuộc về user_id."""
     db_farm = Farm(
-        user_id=user_id, name=farm_in.name, location_text=farm_in.location_text
+        owner_id=user_id, name=farm_in.name, location_text=farm_in.location_text
     )
     db.add(db_farm)
     db.commit()
@@ -18,7 +18,17 @@ def create_farm(db: Session, user_id: int, farm_in: FarmCreate) -> Farm:
 
 def get_farms_by_user(db: Session, user_id: int) -> list[Farm]:
     """Lấy toàn bộ farm thuộc về 1 user."""
-    return db.query(Farm).filter(Farm.user_id == user_id).all()
+    return (
+        db.query(Farm)
+        .filter(Farm.owner_id == user_id)
+        .order_by(Farm.created_at.desc(), Farm.id.desc())
+        .all()
+    )
+
+
+def get_all_farms(db: Session) -> list[Farm]:
+    """Lấy toàn bộ farm; chỉ service dành cho Admin được gọi hàm này."""
+    return db.query(Farm).order_by(Farm.created_at.desc(), Farm.id.desc()).all()
 
 
 def get_farm_by_id(db: Session, farm_id: int) -> Farm | None:
@@ -28,10 +38,8 @@ def get_farm_by_id(db: Session, farm_id: int) -> Farm | None:
 
 def update_farm(db: Session, db_farm: Farm, farm_in: FarmUpdate) -> Farm:
     """Cập nhật thông tin farm."""
-    if farm_in.name is not None:
-        db_farm.name = farm_in.name
-    if farm_in.location_text is not None:
-        db_farm.location_text = farm_in.location_text
+    for field, value in farm_in.model_dump(exclude_unset=True).items():
+        setattr(db_farm, field, value)
     db.commit()
     db.refresh(db_farm)
     return db_farm

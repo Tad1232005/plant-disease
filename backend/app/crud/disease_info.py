@@ -7,7 +7,7 @@ from app.schemas.disease_info import DiseaseInfoCreate, DiseaseInfoUpdate
 
 def get_all_disease_info(db: Session) -> list[DiseaseInfo]:
     """Lấy toàn bộ danh sách bệnh."""
-    return db.query(DiseaseInfo).all()
+    return db.query(DiseaseInfo).order_by(DiseaseInfo.label_key).all()
 
 
 def get_disease_info_by_label(

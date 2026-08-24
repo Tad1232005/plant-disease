@@ -2,13 +2,13 @@
 
 import io
 import json
-from typing import Any, Dict
+from typing import Any
 
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from PIL import Image
-from torchvision import models, transforms  # type: ignore[import]
+from torchvision import models, transforms
 
 from app.core.config import settings
 
@@ -55,14 +55,14 @@ class PredictService:
             ]
         )
 
-    def predict(self, image_bytes: bytes) -> Dict[str, Any]:
+    def predict(self, image_bytes: bytes) -> dict[str, Any]:
         """Nhận byte ảnh, tiền xử lý và trả về kết quả dự đoán.
 
         Args:
             image_bytes (bytes): Dữ liệu file ảnh dạng byte thô.
 
         Returns:
-            Dict[str, Any]: Kết quả chứa label, confidence, is_valid_leaf,
+            dict[str, Any]: Kết quả chứa label, confidence, is_valid_leaf,
             top_k và all_probs.
         """
         image = Image.open(io.BytesIO(image_bytes)).convert("RGB")

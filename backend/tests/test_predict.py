@@ -20,9 +20,9 @@ def test_predict_success(client):
     dummy_img = create_dummy_image()
     files = {"file": ("leaf.jpg", dummy_img, "image/jpeg")}
     response = client.post("/api/v1/predict", files=files)
-    
-    if response.status_code == 200:
-        data = response.json()
-        assert "label" in data
-        assert "top_k" in data
-        assert len(data["top_k"]) > 0
+
+    assert response.status_code == 200
+    data = response.json()
+    assert "label" in data
+    assert "top_k" in data
+    assert len(data["top_k"]) == 3

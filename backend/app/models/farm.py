@@ -20,10 +20,10 @@ class Farm(Base):
         Integer,
         primary_key=True,
         autoincrement=True,
-        index=True,
     )
 
-    user_id: Mapped[int] = mapped_column(
+    owner_id: Mapped[int] = mapped_column(
+        "user_id",
         Integer,
         ForeignKey("users.id", ondelete="CASCADE"),
         nullable=False,

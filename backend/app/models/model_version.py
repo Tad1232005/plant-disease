@@ -25,6 +25,9 @@ class ModelVersion(Base):
         String(20), nullable=False, unique=True
     )
     file_path: Mapped[str] = mapped_column(String(255), nullable=False)
+    classes_path: Mapped[Optional[str]] = mapped_column(
+        String(255), nullable=True
+    )
     accuracy: Mapped[Optional[float]] = mapped_column(Float)
     is_active: Mapped[bool] = mapped_column(Boolean, default=False)
     created_at: Mapped[datetime] = mapped_column(

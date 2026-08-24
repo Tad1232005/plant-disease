@@ -2,10 +2,10 @@
 
 from fastapi import APIRouter
 
-from app.api.v1.auth import router as auth_router
-from app.api.v1.predict import router as predict_router
-from app.api.v1.farms import router as farms_router
-from app.api.v1.disease_info import router as disease_info_router
+from app.api.v1.endpoints.auth import router as auth_router
+from app.api.v1.endpoints.disease_info import router as disease_info_router
+from app.api.v1.endpoints.farms import router as farms_router
+from app.api.v1.endpoints.predict import router as predict_router
 
 api_router = APIRouter()
 api_router.include_router(auth_router)

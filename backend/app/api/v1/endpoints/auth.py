@@ -1,7 +1,5 @@
 """Module định nghĩa các API Endpoints cho việc xác thực người dùng."""
 
-from typing import Dict
-
 from fastapi import (
     APIRouter,
     Depends,
@@ -13,6 +11,7 @@ from fastapi import (
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user
+from app.core.config import settings
 from app.db.session import get_db
 from app.models.user import User
 from app.schemas.auth import LoginRequest, TokenResponse
@@ -21,9 +20,23 @@ from app.services.auth_service import (
     authenticate_user,
     refresh_access_token,
     register_user,
+    revoke_refresh_tokens,
 )
 
 router = APIRouter(prefix="/auth", tags=["Auth"])
+
+
+def _set_refresh_cookie(response: Response, token: str) -> None:
+    """Thiết lập refresh token theo cấu hình bảo mật dùng chung."""
+    response.set_cookie(
+        key=settings.REFRESH_COOKIE_NAME,
+        value=token,
+        httponly=True,
+        secure=settings.COOKIE_SECURE,
+        samesite=settings.COOKIE_SAMESITE,
+        max_age=settings.REFRESH_TOKEN_EXPIRE_DAYS * 24 * 60 * 60,
+        path=settings.REFRESH_COOKIE_PATH,
+    )
 
 
 @router.post(
@@ -51,42 +64,44 @@ def login(
         form_data.username,
         form_data.password,
     )
-    response.set_cookie(
-        key="refresh_token",
-        value=refresh_token,
-        httponly=True,
-        max_age=7 * 24 * 60 * 60,
-        samesite="lax",
-        path="/api/v1/auth/refresh",
-    )
+    _set_refresh_cookie(response, refresh_token)
     return TokenResponse(access_token=access_token)
 
 
 @router.post("/refresh", response_model=TokenResponse)
 def refresh(
     request: Request,
+    response: Response,
     db: Session = Depends(get_db),
 ) -> TokenResponse:
     """Tạo Access Token mới từ Refresh Token trong Cookie."""
-    refresh_token = request.cookies.get("refresh_token")
+    refresh_token = request.cookies.get(settings.REFRESH_COOKIE_NAME)
     if not refresh_token:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Refresh token missing in cookies",
         )
 
-    new_access_token = refresh_access_token(db, refresh_token)
+    new_access_token, new_refresh_token = refresh_access_token(db, refresh_token)
+    _set_refresh_cookie(response, new_refresh_token)
     return TokenResponse(access_token=new_access_token)
 
 
-@router.post("/logout")
-def logout(response: Response) -> Dict[str, str]:
-    """Endpoint đăng xuất, xóa Refresh Token khỏi Cookie."""
+@router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)
+def logout(
+    response: Response,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> None:
+    """Đăng xuất và vô hiệu hóa toàn bộ refresh token đang còn hiệu lực."""
+    revoke_refresh_tokens(db, current_user)
     response.delete_cookie(
-        key="refresh_token",
-        path="/api/v1/auth/refresh",
+        key=settings.REFRESH_COOKIE_NAME,
+        path=settings.REFRESH_COOKIE_PATH,
+        secure=settings.COOKIE_SECURE,
+        httponly=True,
+        samesite=settings.COOKIE_SAMESITE,
     )
-    return {"message": "Logged out successfully"}
 
 
 @router.get("/me", response_model=UserResponse)

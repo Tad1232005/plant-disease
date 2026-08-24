@@ -38,3 +38,4 @@ class UserResponse(BaseModel):
     email: Optional[str] = None
     role: str
     full_name: Optional[str] = None
+    created_by: Optional[int] = None

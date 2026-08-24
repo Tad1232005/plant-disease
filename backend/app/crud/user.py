@@ -26,7 +26,7 @@ def get_user_by_id(db: Session, user_id: int) -> Optional[User]:
 
 def create_user(db: Session, user_in: UserCreate) -> User:
     """Tạo mới một người dùng trong cơ sở dữ liệu."""
-    email_value = str(user_in.email) if user_in.email is not None else ""
+    email_value = str(user_in.email) if user_in.email is not None else None
     db_user = User(
         username=user_in.username,
         email=email_value,

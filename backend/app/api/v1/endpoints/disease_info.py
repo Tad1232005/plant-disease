@@ -51,7 +51,7 @@ def update_disease(
     )
 
 
-@router.delete("/{label_key}")
+@router.delete("/{label_key}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_disease(
     label_key: str,
     db: Session = Depends(get_db),
@@ -59,4 +59,3 @@ def delete_disease(
 ):
     """Xóa bệnh — chỉ Admin."""
     disease_info_service.delete_disease(db, label_key)
-    return {"message": "Đã xóa bệnh thành công"}
