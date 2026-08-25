@@ -1,8 +1,4 @@
-# Hướng dẫn Backend Tuần 1-2
-
-Tài liệu này giải thích phần code đã viết lại, cách chạy và cách kiểm thử từng
-API. Phạm vi bám theo roadmap mới: Auth foundation ở Tuần 1; schema 6 bảng,
-Farm CRUD, Disease Info CRUD và seed data ở Tuần 2.
+# Hướng dẫn chạy Backend 
 
 ## 1. Kiến trúc
 
@@ -14,9 +10,6 @@ HTTP request
     -> app/models/*          Schema, FK, CHECK, index
     -> SQLite
 ```
-
-Tách lớp như vậy giúp endpoint ngắn, business rule có một nơi duy nhất để kiểm
-tra, và test có thể tập trung vào hành vi thay vì chi tiết truy vấn.
 
 ### Auth flow
 
@@ -237,19 +230,11 @@ HTTP status; lỗi nào xảy ra script dừng ngay và in response body.
 
 ## 9. Migration và thay đổi DB hiện có
 
-Migration `8b20a1c2d3e4` thêm `created_by`, `token_version`, hai index user,
-`disease_info.created_at`, `model_versions.classes_path`, unique rank Top-K và
-loại các index bị tạo trùng ở migration cũ.
-
 ```powershell
 alembic current
 alembic upgrade head
 alembic current
 ```
-
-Kết quả cuối phải là `8b20a1c2d3e4 (head)`. Alembic tắt SQLite foreign keys
-trong thời gian batch migration và bật lại sau khi hoàn tất, tránh lỗi khi tái
-tạo bảng.
 
 ## 10. Lỗi thường gặp
 

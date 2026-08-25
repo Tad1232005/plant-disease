@@ -29,7 +29,8 @@ class DiseaseInfoCreate(BaseModel):
 class DiseaseInfoUpdate(BaseModel):
     """Dữ liệu đầu vào khi Admin sửa nội dung bệnh."""
 
-    disease_name: Optional[str] = Field(default=None, min_length=1, max_length=100)
+    disease_name: Optional[str] = Field(
+        default=None, min_length=1, max_length=100)
     description: Optional[str] = None
     treatment: Optional[str] = None
     severity_level: Optional[SeverityLevel] = None

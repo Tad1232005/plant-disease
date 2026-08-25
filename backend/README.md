@@ -24,7 +24,7 @@ Tài khoản seed local có mật khẩu mặc định `123321`: `admin_user`,
 `manager_user`, `technician_user`, `normal_user`. Không dùng các tài khoản này
 ở production. Có thể đặt biến `SEED_DEMO_PASSWORD` trước khi seed để đổi mật khẩu.
 
-Seed còn tạo đủ 38 bản ghi `disease_info` khớp chính xác với
+Seed tạo đủ 38 bản ghi `disease_info` khớp chính xác với
 `app/ml_assets/classes.json` và một `model_version` demo nếu chưa có. Có thể
 chạy lại lệnh seed nhiều lần; script chỉ thêm dữ liệu thiếu, không ghi đè dữ
 liệu đã được chỉnh sửa.
@@ -64,5 +64,5 @@ docs/                  # tài liệu kỹ thuật
 .\.venv\Scripts\python.exe scripts\smoke_week2.py
 ```
 
-Hướng dẫn chi tiết và ma trận kết quả mong đợi nằm tại
+Hướng dẫn chi tiết tại
 [`docs/backend-guide.md`](docs/backend-guide.md).

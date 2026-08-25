@@ -82,7 +82,8 @@ def refresh(
             detail="Refresh token missing in cookies",
         )
 
-    new_access_token, new_refresh_token = refresh_access_token(db, refresh_token)
+    new_access_token, new_refresh_token = refresh_access_token(
+        db, refresh_token)
     _set_refresh_cookie(response, new_refresh_token)
     return TokenResponse(access_token=new_access_token)
 

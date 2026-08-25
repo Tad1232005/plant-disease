@@ -15,12 +15,14 @@ class ScanHistoryItem(BaseModel):
     is_valid_leaf: bool
     created_at: datetime
 
+
 class ScanTopKItem(BaseModel):
     """1 dòng xác suất trong top-3."""
 
     label: str
     confidence: float
     rank: int
+
 
 class ScanDetailResponse(BaseModel):
     """Chi tiết đầy đủ 1 lượt scan, kèm tên bệnh và gợi ý xử lý."""

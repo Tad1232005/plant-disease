@@ -3,7 +3,7 @@
 from collections.abc import Callable
 
 from fastapi import Depends, HTTPException, status
-from fastapi.security import OAuth2PasswordBearer
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.orm import Session
 
 from app.core.security import decode_token
@@ -11,14 +11,14 @@ from app.crud.user import get_user_by_id, get_user_by_username
 from app.db.session import get_db
 from app.models.user import User
 
-oauth2_scheme = OAuth2PasswordBearer(
-    tokenUrl="/api/v1/auth/login",
-    auto_error=False,
-)
+# auto_error=False để tự xử lý trường hợp thiếu token 
+# (dùng cho get_current_user_optional)
+# thay vì để FastAPI tự raise 403 mặc định khi thiếu header Authorization
+bearer_scheme = HTTPBearer(auto_error=False)
 
 
 def get_current_user(
-    token: str | None = Depends(oauth2_scheme),
+    credentials: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
     db: Session = Depends(get_db),
 ) -> User:
     """Xác thực JWT Access Token và trả về user hiện tại."""
@@ -29,9 +29,9 @@ def get_current_user(
     )
 
     try:
-        if token is None:
+        if credentials is None:
             raise credentials_exception
-        payload = decode_token(token)
+        payload = decode_token(credentials.credentials)
     except HTTPException as exc:
         raise credentials_exception from exc
 
@@ -55,14 +55,15 @@ def get_current_user(
 
 
 def get_current_user_optional(
-    token: str | None = Depends(oauth2_scheme),
+    credentials: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
     db: Session = Depends(get_db),
 ) -> User | None:
-    """Trả về ``None`` cho request Guest; dùng cho endpoint public có auth tùy chọn."""
-    if token is None:
+    """Trả về ``None`` cho request Guest;
+        dùng cho endpoint public có auth tùy chọn."""
+    if credentials is None:
         return None
     try:
-        return get_current_user(token=token, db=db)
+        return get_current_user(credentials=credentials, db=db)
     except HTTPException:
         return None
 

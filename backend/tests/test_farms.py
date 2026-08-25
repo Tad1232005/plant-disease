@@ -94,7 +94,8 @@ def test_admin_lists_all_farms_while_manager_only_lists_owned(
         headers=other_headers,
     )
 
-    assert len(client.get("/api/v1/farms", headers=manager_headers).json()) == 1
+    assert len(
+        client.get("/api/v1/farms", headers=manager_headers).json()) == 1
     assert len(client.get("/api/v1/farms", headers=admin_headers).json()) == 2
 
 

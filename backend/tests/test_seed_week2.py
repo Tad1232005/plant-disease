@@ -32,7 +32,8 @@ def test_seed_creates_demo_users_all_classes_and_active_model(db_session):
         item.description and item.treatment
         for item in db_session.query(DiseaseInfo).all()
     )
-    assert db_session.query(ModelVersion).filter_by(is_active=True).count() == 1
+    assert db_session.query(
+        ModelVersion).filter_by(is_active=True).count() == 1
 
 
 def test_seed_is_idempotent_and_does_not_overwrite_content(db_session):
