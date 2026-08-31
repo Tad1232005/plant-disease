@@ -1,7 +1,16 @@
 """
-Chia data/filtered/ thành train/val/test theo leaf_id (tránh leakage).
+Chia dữ liệu thành train/val/test theo leaf_id (tránh leakage).
 
-- Tải leaf-map.json từ Hugging Face nếu chưa có (cache: data/metadata/)
+Gộp NHIỀU nguồn trước khi chia (nếu tồn tại):
+    data/filtered/     PlantVillage gốc (38 class, có leaf_id qua leaf-map.json)
+    data/plantdoc/     PlantDoc đã map nhãn (26 class trùng, ảnh thực tế)
+    data/manual_add/   Tự thu thập thủ công (11 class còn thiếu, ảnh thực tế)
+
+- Tải leaf-map.json từ Hugging Face nếu chưa có (cache: data/metadata/) — chỉ áp dụng
+  để nhóm ảnh PlantVillage theo lá, tránh cùng 1 lá vừa ở train vừa ở test.
+- Ảnh từ plantdoc/ và manual_add/ không có trong leaf-map.json (đúng vì đây là ảnh
+  độc lập từ nguồn khác) -> tự động rơi vào nhóm "solo" (mỗi ảnh 1 nhóm riêng),
+  không rủi ro leakage vì các ảnh này vốn không liên quan tới nhau.
 - Lọc class theo target_classes trong config.yaml
 - Gom ảnh cùng lá → chia leaf vào train/val/test (stratified theo class)
 
@@ -22,6 +31,14 @@ from config import load_config, ml_path
 
 IMAGE_SUFFIXES = {".jpg", ".jpeg", ".png", ".bmp", ".gif"}
 LEAF_MAP_HF_PATH = "leaf_grouping/leaf-map.json"
+
+# Các nguồn dữ liệu sẽ được gộp lại trước khi chia, theo thứ tự ưu tiên hiển thị log.
+# Key = tên nguồn (để log), value = config key trong paths.
+SOURCE_KEYS = [
+    ("PlantVillage", "filtered_dir"),
+    ("PlantDoc", "plantdoc_dir"),
+    ("Manual", "manual_add_dir"),
+]
 
 
 def load_leaf_map(cfg: dict) -> dict:
@@ -49,7 +66,17 @@ def _build_leaf_index(leaf_map: dict) -> dict[str, list[str]]:
     return by_num
 
 
-def resolve_leaf_id(class_name: str, filename: str, leaf_map: dict, by_num: dict) -> str:
+def resolve_leaf_id(
+    class_name: str, filename: str, source_tag: str, leaf_map: dict, by_num: dict
+) -> str:
+    """
+    Với ảnh nguồn PlantVillage: tra leaf-map.json để nhóm đúng theo lá.
+    Với ảnh nguồn khác (PlantDoc, manual_add): không có trong leaf-map -> luôn solo
+    (mỗi ảnh 1 nhóm riêng), vì các ảnh này độc lập với nhau, không có rủi ro leakage.
+    """
+    if source_tag != "PlantVillage":
+        return f"__solo__{source_tag}::{class_name}::{filename}"
+
     stem = Path(filename).stem
     for token in (" copy", " Copy"):
         stem = stem.replace(token, "")
@@ -67,7 +94,7 @@ def resolve_leaf_id(class_name: str, filename: str, leaf_map: dict, by_num: dict
             if any(entry.startswith(class_prefix) for entry in leaf_map[leaf_id]):
                 return leaf_id
 
-    return f"__solo__{class_name}::{stem}"
+    return f"__solo__{source_tag}::{class_name}::{stem}"
 
 
 def _copy_images(files: list[Path], dest_class_dir: Path) -> int:
@@ -86,9 +113,28 @@ def _copy_images(files: list[Path], dest_class_dir: Path) -> int:
     return copied
 
 
+def _collect_source_dirs(cfg: dict) -> list[tuple[str, Path]]:
+    """Trả về danh sách (tên nguồn, thư mục) cho các nguồn thực sự tồn tại trên đĩa."""
+    sources = []
+    for tag, path_key in SOURCE_KEYS:
+        raw_path = cfg["paths"].get(path_key)
+        if not raw_path:
+            continue
+        source_dir = ml_path(raw_path)
+        if source_dir.exists():
+            sources.append((tag, source_dir))
+        elif tag == "PlantVillage":
+            # filtered_dir bắt buộc phải có, các nguồn khác là optional
+            raise FileNotFoundError(
+                f"Không tìm thấy {source_dir}. Chạy download_dataset.py trước."
+            )
+        else:
+            print(f"  (Không thấy {source_dir} — bỏ qua nguồn {tag}, không bắt buộc)")
+    return sources
+
+
 def split_dataset():
     cfg = load_config()
-    filtered_dir = ml_path(cfg["paths"]["filtered_dir"])
     split_dir = ml_path(cfg["paths"]["split_dir"])
     target_classes = set(cfg["target_classes"])
 
@@ -100,19 +146,14 @@ def split_dataset():
     if abs(train_ratio + val_ratio + test_ratio - 1.0) > 1e-6:
         raise ValueError("train_ratio + val_ratio + test_ratio phải bằng 1.0")
 
-    if not filtered_dir.exists():
-        raise FileNotFoundError(
-            f"Không tìm thấy {filtered_dir}. Chạy download_dataset.py trước."
-        )
+    print("=" * 60)
+    print("Chia tập train / val / test (theo leaf, gộp nhiều nguồn)")
+    print("=" * 60)
 
-    invalid = target_classes - {
-        d.name for d in filtered_dir.iterdir() if d.is_dir()
-    }
-    if invalid:
-        raise ValueError(
-            "target_classes không tồn tại trong filtered/:\n"
-            + "\n".join(f"  - {name}" for name in sorted(invalid))
-        )
+    source_dirs = _collect_source_dirs(cfg)
+    print("\nNguồn dữ liệu:")
+    for tag, path in source_dirs:
+        print(f"  [{tag}] {path}")
 
     leaf_map = load_leaf_map(cfg)
     by_num = _build_leaf_index(leaf_map)
@@ -124,11 +165,7 @@ def split_dataset():
         if subset_path.exists():
             shutil.rmtree(subset_path)
 
-    print("=" * 60)
-    print("Chia tập train / val / test (theo leaf)")
-    print("=" * 60)
-    print(f"Nguồn:          {filtered_dir}")
-    print(f"Đích:           {split_dir}")
+    print(f"\nĐích:           {split_dir}")
     print(f"Class scope:    {len(target_classes)} class")
     print(f"Tỷ lệ (leaf):   {train_ratio:.0%} / {val_ratio:.0%} / {test_ratio:.0%}\n")
 
@@ -137,19 +174,27 @@ def split_dataset():
     totals = {"train": 0, "val": 0, "test": 0}
 
     for class_name in sorted(target_classes):
-        class_dir = filtered_dir / class_name
-        images = [
-            p for p in class_dir.glob("*")
-            if p.suffix.lower() in IMAGE_SUFFIXES
-        ]
-        if not images:
-            print(f"  [BỎ QUA] {class_name}: không có ảnh")
-            continue
-
+        # Gom ảnh của class này từ TẤT CẢ nguồn đang có
         leaf_groups: dict[str, list[Path]] = defaultdict(list)
-        for img in images:
-            leaf_id = resolve_leaf_id(class_name, img.name, leaf_map, by_num)
-            leaf_groups[leaf_id].append(img)
+        found_in_any_source = False
+
+        for tag, source_dir in source_dirs:
+            class_dir = source_dir / class_name
+            if not class_dir.exists():
+                continue
+            found_in_any_source = True
+
+            images = [p for p in class_dir.glob("*") if p.suffix.lower() in IMAGE_SUFFIXES]
+            for img in images:
+                leaf_id = resolve_leaf_id(class_name, img.name, tag, leaf_map, by_num)
+                leaf_groups[leaf_id].append(img)
+
+        if not found_in_any_source:
+            print(f"  [BỎ QUA] {class_name}: không có ảnh ở bất kỳ nguồn nào")
+            continue
+        if not leaf_groups:
+            print(f"  [BỎ QUA] {class_name}: có thư mục nhưng không có ảnh")
+            continue
 
         for leaf_id in leaf_groups:
             if leaf_id.startswith("__solo__"):
@@ -163,7 +208,6 @@ def split_dataset():
         n = len(leaf_ids)
         n_train = int(n * train_ratio)
         n_val = int(n * val_ratio)
-        n_test = n - n_train - n_val
 
         partitions = {
             "train": leaf_ids[:n_train],
