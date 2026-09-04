@@ -1,0 +1,12 @@
+{
+  "version_name": "efficientnet-b0-f-v1",
+  "model_type": "efficientnet_b0",
+  "task": "disease_classification",
+  "num_classes": 38,
+  "input_size": [224, 224],
+  "weights": "model.pt",
+  "classes": "classes.json",
+  "model_type_file": "model_type.json",
+  "temperature_file": "temperature.json",
+  "output": "logits"
+}

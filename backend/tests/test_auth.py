@@ -57,6 +57,13 @@ def test_register_rejects_duplicate_username_and_email(client):
     assert register(client, duplicate_email).status_code == 400
 
 
+def test_register_rejects_role_injection_and_weak_password(client):
+    injected = {**REGISTER_PAYLOAD, "role": "admin"}
+    weak = {**REGISTER_PAYLOAD, "username": "weak_user", "password": "password"}
+    assert register(client, injected).status_code == 422
+    assert register(client, weak).status_code == 422
+
+
 def test_login_sets_http_only_refresh_cookie_and_access_ttl(client):
     register(client)
     response = login(client)
@@ -66,6 +73,7 @@ def test_login_sets_http_only_refresh_cookie_and_access_ttl(client):
     payload = decode_token(access_token)
     assert payload["type"] == "access"
     assert payload["role"] == "user"
+    assert payload["token_version"] == 0
     ttl_minutes = (
         datetime.fromtimestamp(payload["exp"], tz=timezone.utc)
         - datetime.fromtimestamp(payload["iat"], tz=timezone.utc)
@@ -134,7 +142,7 @@ def test_refresh_rotates_cookie(client):
     assert client.cookies.get(settings.REFRESH_COOKIE_NAME) != old_refresh
 
 
-def test_logout_revokes_old_refresh_token(client, db_session):
+def test_logout_revokes_old_access_and_refresh_tokens(client, db_session):
     register(client)
     login_response = login(client)
     access_token = login_response.json()["access_token"]
@@ -147,6 +155,11 @@ def test_logout_revokes_old_refresh_token(client, db_session):
     assert logout_response.status_code == 204
     user = db_session.query(User).filter_by(username="new_farmer").one()
     assert user.token_version == 1
+
+    assert client.get(
+        "/api/v1/auth/me",
+        headers={"Authorization": f"Bearer {access_token}"},
+    ).status_code == 401
 
     client.cookies.set(
         settings.REFRESH_COOKIE_NAME,

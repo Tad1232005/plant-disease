@@ -1,5 +1,7 @@
 """Kiểm thử CRUD Disease Info public/admin của Tuần 2."""
 
+from app.models import DiseaseInfo
+
 
 DISEASE_PAYLOAD = {
     "label_key": "Tomato___Early_blight",
@@ -27,7 +29,7 @@ def test_public_can_list_and_get_disease(client, admin_headers):
     assert detail.json()["disease_name"] == DISEASE_PAYLOAD["disease_name"]
 
 
-def test_admin_full_crud_disease_info(client, admin_headers):
+def test_admin_full_crud_disease_info(client, db_session, admin_headers):
     created = client.post(
         "/api/v1/disease-info", json=DISEASE_PAYLOAD, headers=admin_headers
     )
@@ -58,6 +60,25 @@ def test_admin_full_crud_disease_info(client, admin_headers):
         ).status_code
         == 404
     )
+
+    stored = db_session.query(DiseaseInfo).filter_by(
+        label_key=DISEASE_PAYLOAD["label_key"]
+    ).one()
+    assert stored.is_active is False
+
+    restored_payload = {
+        **DISEASE_PAYLOAD,
+        "disease_name": "Bệnh cháy lá sớm đã khôi phục",
+    }
+    restored = client.post(
+        "/api/v1/disease-info",
+        json=restored_payload,
+        headers=admin_headers,
+    )
+    assert restored.status_code == 201
+    assert restored.json()["id"] == created.json()["id"]
+    assert restored.json()["is_active"] is True
+    assert restored.json()["disease_name"] == restored_payload["disease_name"]
 
 
 def test_non_admin_cannot_write_disease_info(

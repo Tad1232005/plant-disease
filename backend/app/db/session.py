@@ -5,18 +5,22 @@ from sqlalchemy import create_engine, event
 from sqlalchemy.orm import sessionmaker
 from app.core.config import settings
 
-engine = create_engine(
-    settings.DATABASE_URL,
-    connect_args={"check_same_thread": False}
-)
+if settings.DATABASE_URL.startswith("sqlite"):
+    engine = create_engine(
+        settings.DATABASE_URL,
+        connect_args={"check_same_thread": False},
+    )
+else:
+    engine = create_engine(settings.DATABASE_URL)
 
 
-@event.listens_for(engine, "connect")
-def set_sqlite_pragma(dbapi_connection, _connection_record):
-    """Bật tính năng ràng buộc khóa ngoại (Foreign Keys) cho SQLite."""
-    cursor = dbapi_connection.cursor()
-    cursor.execute("PRAGMA foreign_keys=ON")
-    cursor.close()
+if engine.url.get_backend_name() == "sqlite":
+    @event.listens_for(engine, "connect")
+    def set_sqlite_pragma(dbapi_connection, _connection_record):
+        """Bật ràng buộc khóa ngoại cho kết nối SQLite."""
+        cursor = dbapi_connection.cursor()
+        cursor.execute("PRAGMA foreign_keys=ON")
+        cursor.close()
 
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)

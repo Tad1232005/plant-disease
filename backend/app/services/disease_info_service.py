@@ -20,9 +20,22 @@ def get_disease(db: Session, label_key: str):
 
 
 def create_disease(db: Session, admin_id: int, data: DiseaseInfoCreate):
-    """Admin thêm bệnh mới, chặn trùng label_key."""
-    if disease_crud.get_disease_info_by_label(db, data.label_key):
+    """Admin thêm bệnh mới hoặc khôi phục label đã soft-delete."""
+    existing = disease_crud.get_disease_info_by_label(
+        db,
+        data.label_key,
+        include_inactive=True,
+    )
+    if existing and existing.is_active:
         raise HTTPException(status_code=400, detail="label_key đã tồn tại")
+    if existing:
+        for field, value in data.model_dump().items():
+            setattr(existing, field, value)
+        existing.is_active = True
+        existing.updated_by = admin_id
+        db.commit()
+        db.refresh(existing)
+        return existing
     return disease_crud.create_disease_info(db, admin_id, data)
 
 
@@ -34,6 +47,6 @@ def update_disease(
 
 
 def delete_disease(db: Session, label_key: str):
-    """Admin xóa bệnh."""
+    """Admin ẩn bệnh khỏi danh mục public (soft delete)."""
     item = get_disease(db, label_key)
     disease_crud.delete_disease_info(db, item)

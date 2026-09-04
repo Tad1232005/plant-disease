@@ -1,7 +1,8 @@
 # Backend Plant Disease API
 
-FastAPI + SQLAlchemy + Alembic + SQLite. Phần Tuần 1-2 gồm Auth/JWT/RBAC,
-6 bảng nền tảng, CRUD Farm và CRUD Disease Info.
+FastAPI + SQLAlchemy + Alembic + SQLite. Backend hiện gồm Auth/JWT/RBAC,
+inference ensemble 1/2/3 model có persistence, CRUD Farm/Disease Info, Managed
+User, Farm Members và lịch sử Scan theo owner.
 
 ## Chạy local
 
@@ -20,14 +21,23 @@ uvicorn app.main:app --reload
 - Swagger: `http://127.0.0.1:8000/docs`
 - OpenAPI JSON: `http://127.0.0.1:8000/openapi.json`
 
-Tài khoản seed local có mật khẩu mặc định `123321`: `admin_user`,
+Tài khoản seed local có mật khẩu mặc định `Demo123321!`: `admin_user`,
 `manager_user`, `technician_user`, `normal_user`. Không dùng các tài khoản này
 ở production. Có thể đặt biến `SEED_DEMO_PASSWORD` trước khi seed để đổi mật khẩu.
 
-Seed tạo đủ 38 bản ghi `disease_info` khớp chính xác với
-`app/ml_assets/classes.json` và một `model_version` demo nếu chưa có. Có thể
+Seed còn tạo đủ 38 bản ghi `disease_info` và đăng ký ba version active độc lập:
+EfficientNet-B0, MobileNetV2 và ResNet50. Trước khi ghi DB, script xác minh
+manifest, task, input size, thứ tự class, temperature và SHA-256 của bundle. Có thể
 chạy lại lệnh seed nhiều lần; script chỉ thêm dữ liệu thiếu, không ghi đè dữ
 liệu đã được chỉnh sửa.
+
+Các file `*.pt` lớn được Git ignore. Mỗi môi trường triển khai phải đặt đủ ba
+`model.pt` đúng thư mục artifact trước khi chạy seed; các JSON manifest/classes/
+temperature được version-control để backend kiểm tra contract.
+
+Logout thu hồi ngay cả access và refresh token bằng `token_version`. Farm và
+Disease Info dùng soft-delete (`archived_at`/`is_active`) để không làm mất dữ
+liệu phục vụ lịch sử Scan và dashboard.
 
 ## Cấu trúc thư mục
 
@@ -50,9 +60,25 @@ docs/                  # tài liệu kỹ thuật
 ## Endpoint Tuần 1-2
 
 - Auth: `/api/v1/auth/register`, `/login`, `/refresh`, `/logout`, `/me`
-- Farms: `/api/v1/farms`, `/api/v1/farms/{farm_id}`
+- Farms (Manager sở hữu): `POST/GET /api/v1/farms`,
+  `GET/PUT/DELETE /api/v1/farms/{farm_id}`
 - Disease Info: `/api/v1/disease-info`,
   `/api/v1/disease-info/{label_key}`
+
+## Endpoint Tuần 3
+
+- Predict: `POST /api/v1/predict` dạng multipart với `file`, `farm_id` và
+  `mode=auto|basic|standard|advanced` tùy chọn. Guest mặc định Basic (1 model),
+  User/Manager Standard (2), Technician/Admin Advanced (3). Server luôn chặn
+  mode vượt quyền. `GET /api/v1/predict/capabilities` cung cấp contract cho FE.
+
+## Endpoint Tuần 4
+
+- Admin Users: `POST/GET /api/v1/admin/users`
+- Manager Users: `POST/GET /api/v1/manager/users`
+- Farm Members: `POST/GET /api/v1/farms/{farm_id}/members`,
+  `DELETE /api/v1/farms/{farm_id}/members/{user_id}`
+- Scans: `GET /api/v1/scans/history`, `GET/DELETE /api/v1/scans/{scan_id}`
 
 ## Test
 
@@ -64,5 +90,7 @@ docs/                  # tài liệu kỹ thuật
 .\.venv\Scripts\python.exe scripts\smoke_week2.py
 ```
 
-Hướng dẫn chi tiết tại
-[`docs/backend-guide.md`](docs/backend-guide.md).
+Hướng dẫn chi tiết và ma trận kết quả mong đợi nằm tại
+[`docs/backend-guide.md`](docs/backend-guide.md) và
+[`docs/week3-guide.md`](docs/week3-guide.md),
+[`docs/week4-guide.md`](docs/week4-guide.md).

@@ -1,4 +1,8 @@
-# Hướng dẫn chạy Backend 
+# Hướng dẫn Backend Tuần 1-4
+
+Tài liệu này giải thích cách chạy và kiểm thử Auth, schema nền
+tảng, Farm/Disease Info, multi-model inference, Managed User, Farm Members và
+lịch sử Scan trong phạm vi Tuần 1-4.
 
 ## 1. Kiến trúc
 
@@ -17,13 +21,13 @@ HTTP request
 register -> Argon2 hash -> users
 login -> access token 15 phút trong JSON
       -> refresh token 7 ngày trong HttpOnly cookie
-refresh -> kiểm tra type + user id + token_version -> rotate hai token
-logout -> token_version += 1 -> xóa cookie
+refresh -> kiểm tra type + user id + token_version -> cấp cặp token mới
+logout -> token_version += 1 -> vô hiệu access/refresh token cũ -> xóa cookie
 ```
 
-`token_version` giải quyết điểm yếu của JWT thuần: xóa cookie ở trình duyệt
-không làm token đã bị sao chép mất hiệu lực. Sau logout, refresh token cũ còn
-đúng chữ ký và chưa hết hạn vẫn bị từ chối vì version trong DB đã tăng.
+`token_version` có trong cả access và refresh JWT. Mỗi request đăng nhập đều so
+phiên bản trong access token với DB, nên sau logout mọi token cũ (kể cả token
+đã bị sao chép sang nơi khác) đều bị từ chối ngay.
 
 ### RBAC và ownership
 
@@ -33,25 +37,27 @@ không làm token đã bị sao chép mất hiệu lực. Sau logout, refresh to
 | `GET /auth/me`, Logout | Không | Có | Có | Có | Có |
 | Đọc Disease Info | Có | Có | Có | Có | Có |
 | Ghi Disease Info | Không | Không | Không | Không | Có |
-| Quản lý Farm | Không | Không | Không | Farm sở hữu | Toàn bộ Farm |
+| Quản lý Farm | Không | Không | Không | Farm sở hữu | Không |
 
 Technician không được gọi `PUT /disease-info/{label_key}`. Vai trò này chỉ gửi
 proposal ở module Approval Workflow của tuần sau. Đây là regression rule đã có
 test riêng.
 
-## 2. Sáu bảng nền tảng
+## 2. Tám bảng nền tảng
 
 | Bảng | Mục đích | Ràng buộc đáng chú ý |
 |---|---|---|
 | `users` | Tài khoản/RBAC | role CHECK, `token_version`, `created_by`, hai index roadmap |
-| `farms` | Farm của Manager | FK owner -> users, xóa owner thì xóa Farm |
-| `disease_info` | Nội dung bệnh public | `label_key` unique, severity low/medium/high |
-| `scans` | Lịch sử dự đoán | User bắt buộc; Guest không tạo record |
-| `scan_topk` | Top-3 của một scan | rank 1..3, một rank không lặp trong cùng scan |
-| `model_versions` | Phiên bản model | partial unique index: chỉ một record active |
+| `farms` | Farm của Manager | FK owner -> users, `archived_at` để giữ lịch sử Scan |
+| `disease_info` | Nội dung bệnh public | `label_key` unique, severity low/medium/high, `is_active` soft-delete |
+| `farm_members` | Phân công Managed User | unique Farm/User, `added_by` audit |
+| `scans` | Kết quả ensemble | User bắt buộc; Guest không tạo record |
+| `scan_topk` | Top-3 ensemble | rank 1..3, một rank không lặp trong cùng scan |
+| `scan_model_results` | Audit từng model | unique Scan/Model Version, uncertainty/latency/error |
+| `model_versions` | Artifact/calibration | mỗi `model_type` tối đa một version active |
 
-`scans` và `scan_topk` mới có schema ở Tuần 2; endpoint lịch sử/predict thuộc
-các tuần tiếp theo.
+`scans` và `scan_topk` có schema từ Tuần 2. Ba endpoint history/detail/delete
+được bổ sung ở Tuần 4 và mô tả trong `docs/week4-guide.md`.
 
 ## 3. Cài đặt và khởi động
 
@@ -68,7 +74,7 @@ uvicorn app.main:app --reload
 ```
 
 Mở `http://127.0.0.1:8000/docs`. Seed tạo bốn tài khoản local, cùng mật khẩu
-`123321`:
+`Demo123321!`:
 
 | Username | Role |
 |---|---|
@@ -136,9 +142,9 @@ refresh cookie mới. Không có cookie hoặc cookie sai/hết hạn nhận HTT
 
 ### 4.5 Logout và revoke
 
-`POST /api/v1/auth/logout` cần access token. Mong đợi HTTP 204. Sau đó gọi lại
-Refresh phải nhận HTTP 401. Việc này chứng minh không chỉ cookie bị xóa mà
-`token_version` trong DB đã vô hiệu refresh token cũ.
+`POST /api/v1/auth/logout` cần access token. Mong đợi HTTP 204. Sau đó cả
+`GET /auth/me` bằng access token cũ và Refresh bằng cookie cũ đều nhận HTTP
+401. Việc này chứng minh `token_version` đã thu hồi cả hai loại token.
 
 ## 5. Test API Farm từng bước
 
@@ -156,15 +162,16 @@ Refresh phải nhận HTTP 401. Việc này chứng minh không chỉ cookie b�
    Mong đợi HTTP 201; `owner_id` là id của Manager.
 
 2. `GET /api/v1/farms`: HTTP 200, Manager chỉ thấy Farm của mình.
-3. `GET /api/v1/farms/{id}`: HTTP 200 nếu sở hữu.
-4. `PUT /api/v1/farms/{id}` với một hoặc cả hai field: HTTP 200.
-5. `DELETE /api/v1/farms/{id}`: HTTP 204; GET lại nhận 404.
+3. `GET /api/v1/farms/{id}`: HTTP 200 nếu Manager sở hữu Farm.
+4. `PUT /api/v1/farms/{id}` với một hoặc cả hai field: HTTP 200 nếu sở hữu.
+5. `DELETE /api/v1/farms/{id}`: HTTP 204; GET lại nhận 404. Đây là soft-delete:
+   DB gán `archived_at`, giữ nguyên Farm và `scans.farm_id` cho báo cáo lịch sử.
 
 Case phân quyền cần kiểm tra:
 
 - `normal_user` POST Farm -> 403.
-- Manager khác GET/PUT/DELETE Farm không sở hữu -> 403.
-- `admin_user` GET danh sách -> thấy toàn bộ Farm của mọi Manager.
+- Manager khác GET/PUT/DELETE Farm không sở hữu -> 403 và GET danh sách không thấy Farm đó.
+- `admin_user` gọi mọi endpoint Farm -> 403; Admin giám sát qua API riêng ở roadmap sau.
 - Tên chỉ chứa khoảng trắng -> 422.
 
 Case Manager khác được test tự động trong `tests/test_farms.py`; không cần sửa
@@ -192,7 +199,9 @@ Hai endpoint GET là public. Các endpoint POST/PUT/DELETE chỉ Admin.
    Mong đợi HTTP 201. Tạo lại label giống nhau nhận HTTP 400.
 
 4. PUT cùng label với `{"severity_level":"high"}`: HTTP 200.
-5. DELETE cùng label: HTTP 204.
+5. DELETE cùng label: HTTP 204; GET public sau đó nhận 404. Bản ghi được giữ
+   với `is_active=false` để Scan lịch sử vẫn có tên bệnh/điều trị. POST lại
+   cùng `label_key` sẽ khôi phục chính bản ghi đó bằng nội dung mới.
 6. Đăng nhập `technician_user`, thử PUT: HTTP 403.
 7. Gửi severity ngoài `low`, `medium`, `high`: HTTP 422.
 
@@ -235,6 +244,10 @@ alembic current
 alembic upgrade head
 alembic current
 ```
+
+Kết quả cuối phải là `f6a7b8c9d0e1 (head)`. Alembic tắt SQLite foreign keys
+trong thời gian batch migration và bật lại sau khi hoàn tất, tránh lỗi khi tái
+tạo bảng.
 
 ## 10. Lỗi thường gặp
 

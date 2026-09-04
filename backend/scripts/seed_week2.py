@@ -23,6 +23,10 @@ from app.core.config import settings
 from app.core.security import hash_password
 from app.db.session import SessionLocal
 from app.models import DiseaseInfo, ModelVersion, User
+from app.services.model_artifact_service import (
+    ModelArtifactSpec,
+    discover_artifacts,
+)
 
 if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8")
@@ -186,8 +190,7 @@ def seed_database(
     *,
     labels: Sequence[str],
     demo_password: str,
-    model_path: str,
-    classes_path: str,
+    model_specs: Sequence[ModelArtifactSpec],
 ) -> SeedSummary:
     """Seed một session và commit đúng một transaction."""
     users_created = 0
@@ -226,27 +229,51 @@ def seed_database(
                 db.add(DiseaseInfo(**disease_defaults(label)))
                 diseases_created += 1
 
-        model_version = (
-            db.query(ModelVersion)
-            .filter(ModelVersion.version_name == "v1-demo")
-            .first()
-        )
-        if model_version is None:
+        for spec in model_specs:
+            model_version = (
+                db.query(ModelVersion)
+                .filter(ModelVersion.version_name == spec.version_name)
+                .first()
+            )
+            if model_version is not None:
+                if (
+                    model_version.model_type != spec.model_type
+                    or model_version.task != spec.task
+                    or model_version.sha256 != spec.sha256
+                ):
+                    raise RuntimeError(
+                        f"Version name collision với artifact khác: {spec.version_name}"
+                    )
+                # Cho phép chuyển database sang installation path khác khi bundle
+                # vẫn có cùng checksum; không thay activation do Admin quyết định.
+                model_version.file_path = spec.file_path
+                model_version.classes_path = spec.classes_path
+                model_version.temperature_path = spec.temperature_path
+                model_version.temperature = spec.temperature
+                continue
             has_active_model = (
                 db.query(ModelVersion)
-                .filter(ModelVersion.is_active.is_(True))
+                .filter(
+                    ModelVersion.model_type == spec.model_type,
+                    ModelVersion.is_active.is_(True),
+                )
                 .first()
                 is not None
             )
             db.add(
                 ModelVersion(
-                    version_name="v1-demo",
-                    file_path=model_path,
-                    classes_path=classes_path,
+                    version_name=spec.version_name,
+                    model_type=spec.model_type,
+                    task=spec.task,
+                    file_path=spec.file_path,
+                    classes_path=spec.classes_path,
+                    temperature_path=spec.temperature_path,
+                    temperature=spec.temperature,
+                    sha256=spec.sha256,
                     is_active=not has_active_model,
                 )
             )
-            model_versions_created = 1
+            model_versions_created += 1
 
         db.commit()
     except Exception:
@@ -262,16 +289,16 @@ def seed_database(
 
 def run() -> SeedSummary:
     """Nạp cấu hình, mở session và chạy seed."""
-    labels = load_labels(settings.CLASSES_PATH)
-    demo_password = os.getenv("SEED_DEMO_PASSWORD", "123321")
+    model_specs = discover_artifacts(settings.MODEL_ARTIFACT_ROOT)
+    labels = list(model_specs[0].classes)
+    demo_password = os.getenv("SEED_DEMO_PASSWORD", "Demo123321!")
     db = SessionLocal()
     try:
         summary = seed_database(
             db,
             labels=labels,
             demo_password=demo_password,
-            model_path=settings.MODEL_PATH,
-            classes_path=settings.CLASSES_PATH,
+            model_specs=model_specs,
         )
     finally:
         db.close()

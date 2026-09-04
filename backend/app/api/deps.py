@@ -38,6 +38,10 @@ def get_current_user(
     if payload.get("type") != "access":
         raise credentials_exception
 
+    token_version = payload.get("token_version")
+    if not isinstance(token_version, int) or isinstance(token_version, bool):
+        raise credentials_exception
+
     subject: str | None = payload.get("sub")
     if not subject:
         raise credentials_exception
@@ -51,6 +55,9 @@ def get_current_user(
     if user is None:
         raise credentials_exception
 
+    if user.token_version != token_version:
+        raise credentials_exception
+
     return user
 
 
@@ -58,14 +65,10 @@ def get_current_user_optional(
     credentials: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
     db: Session = Depends(get_db),
 ) -> User | None:
-    """Trả về ``None`` cho request Guest;
-        dùng cho endpoint public có auth tùy chọn."""
+    """Trả ``None`` khi thiếu token; token đã gửi nhưng sai nhận 401."""
     if credentials is None:
         return None
-    try:
-        return get_current_user(credentials=credentials, db=db)
-    except HTTPException:
-        return None
+    return get_current_user(credentials=credentials, db=db)
 
 
 def require_role(*allowed_roles: str) -> Callable[..., User]:

@@ -17,6 +17,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.db.base import Base
 
 if TYPE_CHECKING:
+    from app.models.farm_member import FarmMember
     from app.models.farm import Farm
     from app.models.scan import Scan
     from app.models.disease_info import DiseaseInfo
@@ -117,4 +118,11 @@ class User(Base):
         "User",
         back_populates="creator",
         foreign_keys=[created_by],
+    )
+
+    farm_memberships: Mapped[List["FarmMember"]] = relationship(
+        "FarmMember",
+        back_populates="user",
+        cascade="all, delete-orphan",
+        foreign_keys="FarmMember.user_id",
     )

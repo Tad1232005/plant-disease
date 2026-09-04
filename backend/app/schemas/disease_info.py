@@ -55,6 +55,7 @@ class DiseaseInfoResponse(BaseModel):
     description: Optional[str] = None
     treatment: Optional[str] = None
     severity_level: SeverityLevel
+    is_active: bool
     created_at: datetime
     updated_at: datetime
     model_config = ConfigDict(from_attributes=True)

@@ -43,7 +43,7 @@ def main() -> None:
     parser.add_argument(
         "--base-url", default="http://127.0.0.1:8000/api/v1"
     )
-    parser.add_argument("--demo-password", default="123321")
+    parser.add_argument("--demo-password", default="Demo123321!")
     args = parser.parse_args()
     base_url = args.base_url.rstrip("/")
     suffix = uuid4().hex[:8]
@@ -52,7 +52,7 @@ def main() -> None:
         register_body = {
             "username": f"smoke_{suffix}",
             "email": f"smoke_{suffix}@example.com",
-            "password": "123321",
+            "password": "Demo123321!",
             "full_name": "Smoke Test User",
         }
         require(
@@ -103,10 +103,17 @@ def main() -> None:
         )
         require(
             manager_client.get(
+                f"{base_url}/farms", headers=manager_headers
+            ),
+            200,
+            "farms/list owned",
+        )
+        require(
+            manager_client.get(
                 f"{base_url}/farms/{farm['id']}", headers=manager_headers
             ),
             200,
-            "farms/get",
+            "farms/get owned",
         )
         require(
             manager_client.put(
@@ -131,6 +138,13 @@ def main() -> None:
             base_url,
             "admin_user",
             args.demo_password,
+        )
+        require(
+            admin_client.get(
+                f"{base_url}/farms", headers=admin_headers
+            ),
+            403,
+            "farms/admin forbidden",
         )
         disease = {
             "label_key": f"Smoke___Disease_{suffix}",

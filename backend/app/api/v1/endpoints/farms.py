@@ -20,18 +20,18 @@ router = APIRouter(prefix="/farms", tags=["Farms"])
 def create_farm(
     farm_in: FarmCreate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_role("manager", "admin")),
+    current_user: User = Depends(require_role("manager")),
 ):
-    """Tạo farm mới."""
+    """Manager tạo farm mới thuộc quyền sở hữu của chính mình."""
     return farm_service.create_farm(db, current_user, farm_in)
 
 
 @router.get("", response_model=list[FarmResponse])
 def list_farms(
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_role("manager", "admin")),
+    current_user: User = Depends(require_role("manager")),
 ):
-    """Lấy danh sách farm của user hiện tại."""
+    """Manager lấy danh sách farm do chính mình sở hữu."""
     return farm_service.list_farms(db, current_user)
 
 
@@ -39,9 +39,9 @@ def list_farms(
 def get_farm(
     farm_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_role("manager", "admin")),
+    current_user: User = Depends(require_role("manager")),
 ):
-    """Lấy chi tiết farm; Manager chỉ xem farm mình sở hữu."""
+    """Manager lấy chi tiết farm do chính mình sở hữu."""
     return farm_service.get_farm(db, current_user, farm_id)
 
 
@@ -50,9 +50,9 @@ def update_farm(
     farm_id: int,
     farm_in: FarmUpdate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_role("manager", "admin")),
+    current_user: User = Depends(require_role("manager")),
 ):
-    """Cập nhật thông tin farm."""
+    """Manager cập nhật farm do chính mình sở hữu."""
     return farm_service.update_farm(db, current_user, farm_id, farm_in)
 
 
@@ -60,7 +60,7 @@ def update_farm(
 def delete_farm(
     farm_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_role("manager", "admin")),
+    current_user: User = Depends(require_role("manager")),
 ):
-    """Xóa farm."""
+    """Manager xóa farm do chính mình sở hữu."""
     farm_service.delete_farm(db, current_user, farm_id)

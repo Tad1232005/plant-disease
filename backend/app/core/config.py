@@ -27,9 +27,20 @@ class Settings(BaseSettings):
         "http://127.0.0.1:5173",
     ]
 
+    # MODEL_PATH/CLASSES_PATH được giữ để tương thích cấu hình cũ. Inference
+    # nhiều model đọc artifact từ MODEL_ARTIFACT_ROOT và metadata trong DB.
     MODEL_PATH: str = str(BASE_DIR / "app" / "ml_assets" / "best_model.pt")
     CLASSES_PATH: str = str(BASE_DIR / "app" / "ml_assets" / "classes.json")
-    CONFIDENCE_THRESHOLD: float = 0.5  # ngưỡng OOD
+    MODEL_ARTIFACT_ROOT: str = str(BASE_DIR / "app" / "ml_assets" / "models")
+    CONFIDENCE_THRESHOLD: float = 0.3
+    TOP1_MARGIN_THRESHOLD: float = 0.05
+    JS_DIVERGENCE_THRESHOLD: float = 0.3
+    PARALLEL_MODEL_INFERENCE: bool = True
+    MAX_CONCURRENT_INFERENCES: int = 1
+    MAX_UPLOAD_BYTES: int = 10 * 1024 * 1024
+    MAX_IMAGE_PIXELS: int = 20_000_000
+    INFERENCE_TIMEOUT_SECONDS: float = 30.0
+    UPLOAD_DIR: str = str(BASE_DIR / "storage" / "uploads")
 
     model_config = SettingsConfigDict(
         env_file=".env",

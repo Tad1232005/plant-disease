@@ -5,18 +5,30 @@ from app.models.disease_info import DiseaseInfo
 from app.schemas.disease_info import DiseaseInfoCreate, DiseaseInfoUpdate
 
 
-def get_all_disease_info(db: Session) -> list[DiseaseInfo]:
-    """Lấy toàn bộ danh sách bệnh."""
-    return db.query(DiseaseInfo).order_by(DiseaseInfo.label_key).all()
+def get_all_disease_info(
+    db: Session,
+    *,
+    include_inactive: bool = False,
+) -> list[DiseaseInfo]:
+    """Lấy danh sách bệnh; mặc định chỉ lấy nội dung đang công khai."""
+    query = db.query(DiseaseInfo)
+    if not include_inactive:
+        query = query.filter(DiseaseInfo.is_active.is_(True))
+    return query.order_by(DiseaseInfo.label_key).all()
 
 
 def get_disease_info_by_label(
-        db: Session, label_key: str) -> DiseaseInfo | None:
+    db: Session,
+    label_key: str,
+    *,
+    include_inactive: bool = False,
+) -> DiseaseInfo | None:
 
     """Lấy 1 bệnh theo label_key."""
-    return db.query(DiseaseInfo).filter(
-        DiseaseInfo.label_key == label_key
-    ).first()
+    query = db.query(DiseaseInfo).filter(DiseaseInfo.label_key == label_key)
+    if not include_inactive:
+        query = query.filter(DiseaseInfo.is_active.is_(True))
+    return query.first()
 
 
 def create_disease_info(
@@ -43,6 +55,7 @@ def update_disease_info(
 
 
 def delete_disease_info(db: Session, db_item: DiseaseInfo) -> None:
-    """Admin xóa 1 bệnh."""
-    db.delete(db_item)
+    """Ẩn nội dung bệnh khỏi API public nhưng giữ cho scan lịch sử."""
+    db_item.is_active = False
+    db.add(db_item)
     db.commit()

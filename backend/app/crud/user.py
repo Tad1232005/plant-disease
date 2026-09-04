@@ -38,3 +38,18 @@ def create_user(db: Session, user_in: UserCreate) -> User:
     db.commit()
     db.refresh(db_user)
     return db_user
+
+
+def get_users(
+    db: Session,
+    *,
+    role: str | None = None,
+    created_by: int | None = None,
+) -> list[User]:
+    """Liệt kê user theo role và/hoặc người tạo."""
+    query = db.query(User)
+    if role is not None:
+        query = query.filter(User.role == role)
+    if created_by is not None:
+        query = query.filter(User.created_by == created_by)
+    return query.order_by(User.created_at.desc(), User.id.desc()).all()

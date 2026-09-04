@@ -29,8 +29,9 @@ def create_access_token(
     subject: str | Any,
     role: str | None = None,
     expires_delta: Optional[timedelta] = None,
+    token_version: int = 0,
 ) -> str:
-    """Tạo JWT access token cho người dùng."""
+    """Tạo JWT access token kèm phiên bản để có thể thu hồi tức thời."""
     issued_at = datetime.now(timezone.utc)
     expire = issued_at + (
         expires_delta
@@ -41,6 +42,7 @@ def create_access_token(
         "sub": str(subject),
         "exp": expire,
         "type": "access",
+        "token_version": token_version,
         "iat": issued_at,
         "jti": uuid4().hex,
     }

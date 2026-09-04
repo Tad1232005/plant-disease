@@ -12,7 +12,7 @@ from app.core.security import create_access_token, hash_password
 from app.db.base import Base
 from app.db.session import get_db
 from app.main import app
-from app.models import User
+from app.models import ModelVersion, User
 
 
 engine = create_engine(
@@ -81,10 +81,51 @@ def user_factory(db_session: Session) -> Callable[..., User]:
 @pytest.fixture
 def token_headers() -> Callable[[User], dict[str, str]]:
     def build(user: User) -> dict[str, str]:
-        token = create_access_token(user.id, role=user.role)
+        token = create_access_token(
+            user.id,
+            role=user.role,
+            token_version=user.token_version,
+        )
         return {"Authorization": f"Bearer {token}"}
 
     return build
+
+
+@pytest.fixture
+def active_model_versions(db_session: Session) -> list[ModelVersion]:
+    """Metadata nhẹ cho API test; không load trọng số thật."""
+    rows = [
+        ModelVersion(
+            version_name="efficientnet-b0-test",
+            model_type="efficientnet_b0",
+            file_path="models/efficientnet.pt",
+            classes_path="models/classes.json",
+            temperature=1.49,
+            sha256="a" * 64,
+            is_active=True,
+        ),
+        ModelVersion(
+            version_name="mobilenet-v2-test",
+            model_type="mobilenet_v2",
+            file_path="models/mobilenet.pt",
+            classes_path="models/classes.json",
+            temperature=1.0,
+            sha256="b" * 64,
+            is_active=True,
+        ),
+        ModelVersion(
+            version_name="resnet50-test",
+            model_type="resnet50",
+            file_path="models/resnet.pt",
+            classes_path="models/classes.json",
+            temperature=1.49,
+            sha256="c" * 64,
+            is_active=True,
+        ),
+    ]
+    db_session.add_all(rows)
+    db_session.commit()
+    return rows
 
 
 @pytest.fixture
