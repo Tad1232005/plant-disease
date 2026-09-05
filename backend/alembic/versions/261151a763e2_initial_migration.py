@@ -33,7 +33,7 @@ def upgrade() -> None:
     sa.UniqueConstraint('version_name')
     )
     with op.batch_alter_table('model_versions', schema=None) as batch_op:
-        batch_op.create_index('idx_single_active_model', ['is_active'], unique=True, postgresql_where=sa.text('is_active = true'), sqlite_where=sa.text('is_active = 1'))
+        batch_op.create_index('idx_single_active_model', ['is_active'], unique=True, postgresql_where=sa.text('is_active = true'))
 
     op.create_table('users',
     sa.Column('id', sa.Integer(), autoincrement=True, nullable=False),
@@ -153,7 +153,7 @@ def downgrade() -> None:
 
     op.drop_table('users')
     with op.batch_alter_table('model_versions', schema=None) as batch_op:
-        batch_op.drop_index('idx_single_active_model', postgresql_where=sa.text('is_active = true'), sqlite_where=sa.text('is_active = 1'))
+        batch_op.drop_index('idx_single_active_model', postgresql_where=sa.text('is_active = true'))
 
     op.drop_table('model_versions')
     # ### end Alembic commands ###

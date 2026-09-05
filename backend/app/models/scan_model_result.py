@@ -4,7 +4,7 @@ from datetime import datetime
 from typing import TYPE_CHECKING, Optional
 
 from sqlalchemy import (
-    Boolean, CheckConstraint, DateTime, Float, ForeignKey, Index, Integer,
+    Boolean, CheckConstraint, DateTime, Float, ForeignKey, Index, Integer, false,
     String, Text, UniqueConstraint, func,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -33,7 +33,7 @@ class ScanModelResult(Base):
     entropy: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     energy_score: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     accepted: Mapped[bool] = mapped_column(
-        Boolean, nullable=False, default=False, server_default="0"
+        Boolean, nullable=False, default=False, server_default=false()
     )
     latency_ms: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     error_code: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)

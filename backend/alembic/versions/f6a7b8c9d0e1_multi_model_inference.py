@@ -24,7 +24,7 @@ def upgrade() -> None:
     with op.batch_alter_table("model_versions") as batch_op:
         batch_op.drop_index("idx_single_active_model")
 
-    with op.batch_alter_table("model_versions", recreate="always") as batch_op:
+    with op.batch_alter_table("model_versions") as batch_op:
         batch_op.alter_column(
             "version_name",
             existing_type=sa.String(length=20),
@@ -56,7 +56,7 @@ def upgrade() -> None:
         batch_op.add_column(sa.Column("ece", sa.Float()))
         batch_op.add_column(sa.Column("metrics_path", sa.String(length=255)))
         batch_op.add_column(
-            sa.Column("is_enabled", sa.Boolean(), server_default=sa.text("1"), nullable=False)
+            sa.Column("is_enabled", sa.Boolean(), server_default=sa.true(), nullable=False)
         )
         batch_op.add_column(
             sa.Column(
@@ -87,13 +87,12 @@ def upgrade() -> None:
             ["model_type"],
             unique=True,
             postgresql_where=sa.text("is_active = true"),
-            sqlite_where=sa.text("is_active = 1"),
         )
 
     # Model legacy chưa có artifact contract; seed mới sẽ đăng ký 3 version active.
-    op.execute(sa.text("UPDATE model_versions SET is_active = 0"))
+    op.execute(sa.text("UPDATE model_versions SET is_active = false"))
 
-    with op.batch_alter_table("farm_members", recreate="always") as batch_op:
+    with op.batch_alter_table("farm_members") as batch_op:
         batch_op.add_column(sa.Column("added_by", sa.Integer(), nullable=True))
         batch_op.create_foreign_key(
             "fk_farm_members_added_by_users",
@@ -103,7 +102,7 @@ def upgrade() -> None:
             ondelete="SET NULL",
         )
 
-    with op.batch_alter_table("scans", recreate="always") as batch_op:
+    with op.batch_alter_table("scans") as batch_op:
         batch_op.alter_column(
             "model_version",
             existing_type=sa.String(length=20),
@@ -172,7 +171,7 @@ def upgrade() -> None:
     op.execute(
         sa.text(
             "UPDATE scans SET validation_status = 'low_confidence', "
-            "rejection_reason = 'legacy_low_confidence' WHERE is_valid_leaf = 0"
+            "rejection_reason = 'legacy_low_confidence' WHERE is_valid_leaf = false"
         )
     )
 
@@ -187,7 +186,7 @@ def upgrade() -> None:
         sa.Column("top1_top2_margin", sa.Float()),
         sa.Column("entropy", sa.Float()),
         sa.Column("energy_score", sa.Float()),
-        sa.Column("accepted", sa.Boolean(), server_default=sa.text("0"), nullable=False),
+        sa.Column("accepted", sa.Boolean(), server_default=sa.false(), nullable=False),
         sa.Column("latency_ms", sa.Float()),
         sa.Column("error_code", sa.String(length=50)),
         sa.Column("topk_json", sa.Text()),
@@ -231,7 +230,7 @@ def downgrade() -> None:
     op.drop_index("idx_scan_model_results_scan_id", table_name="scan_model_results")
     op.drop_table("scan_model_results")
 
-    with op.batch_alter_table("scans", recreate="always") as batch_op:
+    with op.batch_alter_table("scans") as batch_op:
         batch_op.drop_index("idx_scans_validation_status")
         batch_op.drop_index("idx_scans_inference_mode")
         batch_op.drop_index("idx_scans_primary_model_version_id")
@@ -256,13 +255,13 @@ def downgrade() -> None:
             existing_nullable=True,
         )
 
-    with op.batch_alter_table("farm_members", recreate="always") as batch_op:
+    with op.batch_alter_table("farm_members") as batch_op:
         batch_op.drop_constraint("fk_farm_members_added_by_users", type_="foreignkey")
         batch_op.drop_column("added_by")
 
     # Schema cũ chỉ cho một active version toàn cục; tắt hết để downgrade luôn an toàn.
-    op.execute(sa.text("UPDATE model_versions SET is_active = 0"))
-    with op.batch_alter_table("model_versions", recreate="always") as batch_op:
+    op.execute(sa.text("UPDATE model_versions SET is_active = false"))
+    with op.batch_alter_table("model_versions") as batch_op:
         batch_op.drop_index("idx_one_active_version_per_model_type")
         batch_op.drop_index("idx_model_versions_is_enabled")
         batch_op.drop_index("idx_model_versions_model_type")
@@ -286,5 +285,4 @@ def downgrade() -> None:
             ["is_active"],
             unique=True,
             postgresql_where=sa.text("is_active = true"),
-            sqlite_where=sa.text("is_active = 1"),
         )

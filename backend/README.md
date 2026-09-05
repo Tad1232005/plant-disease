@@ -1,6 +1,7 @@
 # Backend Plant Disease API
 
-FastAPI + SQLAlchemy + Alembic + SQLite. Backend hiện gồm Auth/JWT/RBAC,
+FastAPI + SQLAlchemy + Alembic + PostgreSQL.
+Backend hiện gồm Auth/JWT/RBAC,
 inference ensemble 1/2/3 model có persistence, CRUD Farm/Disease Info, Managed
 User, Farm Members và lịch sử Scan theo owner.
 
@@ -12,6 +13,8 @@ python -m venv .venv
 .\.venv\Scripts\Activate.ps1
 pip install -r requirements.txt
 Copy-Item .env.example .env
+docker compose -f compose.postgres.yml up -d database
+python -m scripts.check_database
 alembic upgrade head
 python -m scripts.seed_week2
 uvicorn app.main:app --reload
@@ -83,14 +86,11 @@ docs/                  # tài liệu kỹ thuật
 ## Test
 
 ```powershell
-# Test tích hợp không cần chạy server
+# Test tích hợp trên database PostgreSQL riêng `plant_disease_test`.
+# PostgreSQL container phải đang chạy; test tự tạo và xóa database test.
 .\.venv\Scripts\python.exe -m pytest -q
 
 # Test trên server thật (chạy seed + uvicorn trước)
 .\.venv\Scripts\python.exe scripts\smoke_week2.py
 ```
 
-Hướng dẫn chi tiết và ma trận kết quả mong đợi nằm tại
-[`docs/backend-guide.md`](docs/backend-guide.md) và
-[`docs/week3-guide.md`](docs/week3-guide.md),
-[`docs/week4-guide.md`](docs/week4-guide.md).

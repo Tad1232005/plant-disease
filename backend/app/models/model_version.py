@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING, List, Optional
 
 from sqlalchemy import (
     Boolean, CheckConstraint, DateTime, Float, Index, Integer, String,
-    func, text,
+    false, func, text, true,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -38,10 +38,10 @@ class ModelVersion(Base):
     ece: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     metrics_path: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     is_active: Mapped[bool] = mapped_column(
-        Boolean, nullable=False, default=False, server_default="0"
+        Boolean, nullable=False, default=False, server_default=false()
     )
     is_enabled: Mapped[bool] = mapped_column(
-        Boolean, nullable=False, default=True, server_default="1"
+        Boolean, nullable=False, default=True, server_default=true()
     )
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
@@ -73,7 +73,6 @@ class ModelVersion(Base):
             "model_type",
             unique=True,
             postgresql_where=text("is_active = true"),
-            sqlite_where=text("is_active = 1"),
         ),
     )
 

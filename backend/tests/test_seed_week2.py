@@ -7,7 +7,7 @@ from app.services.model_artifact_service import (
     _bundle_digest,
     discover_artifacts,
 )
-from scripts.seed_week2 import DEMO_USERS, load_labels, seed_database
+from scripts.seed_week2 import DEMO_USERS, seed_database
 
 
 def lightweight_specs(labels: list[str]) -> list[ModelArtifactSpec]:
@@ -32,7 +32,7 @@ def lightweight_specs(labels: list[str]) -> list[ModelArtifactSpec]:
 
 
 def run_seed(db_session):
-    labels = load_labels("app/ml_assets/classes.json")
+    labels = list(discover_artifacts(settings.MODEL_ARTIFACT_ROOT)[0].classes)
     summary = seed_database(
         db_session,
         labels=labels,

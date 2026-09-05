@@ -11,9 +11,7 @@ liệu người dùng hoặc nội dung bệnh đã được chỉnh sửa trong
 from __future__ import annotations
 
 from dataclasses import dataclass
-import json
 import os
-from pathlib import Path
 import sys
 from typing import Sequence
 
@@ -114,33 +112,6 @@ class SeedSummary:
     users_created: int
     diseases_created: int
     model_versions_created: int
-
-
-def load_labels(classes_path: str | Path) -> list[str]:
-    """Đọc và kiểm tra danh sách nhãn dùng bởi model."""
-    path = Path(classes_path)
-    try:
-        raw_labels = json.loads(path.read_text(encoding="utf-8"))
-    except FileNotFoundError as exc:
-        raise RuntimeError(f"Không tìm thấy file classes: {path}") from exc
-    except json.JSONDecodeError as exc:
-        raise RuntimeError(f"File classes"
-                           f"không phải JSON hợp lệ: {path}") from exc
-
-    if not isinstance(raw_labels, list) or not raw_labels:
-        raise RuntimeError("File classes "
-                           "phải là một danh sách nhãn không rỗng")
-    if any(
-        not isinstance(label, str) or not label.strip() or len(label) > 50
-        for label in raw_labels
-    ):
-        raise RuntimeError("Mỗi label trong file classes "
-                           "phải là chuỗi 1-50 ký tự")
-
-    labels = [label.strip() for label in raw_labels]
-    if len(labels) != len(set(labels)):
-        raise RuntimeError("File classes chứa label bị trùng")
-    return labels
 
 
 def disease_defaults(label: str) -> dict[str, str]:

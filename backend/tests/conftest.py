@@ -1,24 +1,24 @@
-"""Fixtures tích hợp cho API Tuần 1-2 trên SQLite in-memory."""
+"""Fixtures tích hợp cho API trên PostgreSQL database tách biệt."""
 
 from collections.abc import Callable, Generator
 
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine, event
+from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, sessionmaker
-from sqlalchemy.pool import StaticPool
 
 from app.core.security import create_access_token, hash_password
 from app.db.base import Base
 from app.db.session import get_db
 from app.main import app
 from app.models import ModelVersion, User
+from tests.db_support import drop_database, get_test_database_url, recreate_database
 
 
+TEST_DATABASE_URL = get_test_database_url()
 engine = create_engine(
-    "sqlite:///:memory:",
-    connect_args={"check_same_thread": False},
-    poolclass=StaticPool,
+    TEST_DATABASE_URL,
+    pool_pre_ping=True,
 )
 TestingSessionLocal = sessionmaker(
     autocommit=False,
@@ -27,13 +27,18 @@ TestingSessionLocal = sessionmaker(
 )
 
 
-@event.listens_for(engine, "connect")
-def enable_sqlite_foreign_keys(dbapi_connection, _record) -> None:
-    dbapi_connection.execute("PRAGMA foreign_keys=ON")
+@pytest.fixture(scope="session", autouse=True)
+def postgres_test_database() -> Generator[None, None, None]:
+    recreate_database(TEST_DATABASE_URL)
+    try:
+        yield
+    finally:
+        engine.dispose()
+        drop_database(TEST_DATABASE_URL)
 
 
 @pytest.fixture
-def db_session() -> Generator[Session, None, None]:
+def db_session(postgres_test_database: None) -> Generator[Session, None, None]:
     Base.metadata.create_all(bind=engine)
     session = TestingSessionLocal()
     try:

@@ -12,6 +12,7 @@ from sqlalchemy import (
     Index,
     String,
     Text,
+    true,
     func,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -78,7 +79,7 @@ class DiseaseInfo(Base):
     is_active: Mapped[bool] = mapped_column(
         Boolean,
         default=True,
-        server_default="1",
+        server_default=true(),
         nullable=False,
     )
 
