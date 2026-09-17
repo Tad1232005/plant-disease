@@ -35,8 +35,10 @@ train_transform = transforms.Compose([
 ])
 
 eval_transform = transforms.Compose([
+    # Resize
     transforms.Resize((IMAGE_SIZE, IMAGE_SIZE)),
     transforms.ToTensor(),
+    # Mean/Std: ImageNet normalization
     transforms.Normalize(
         mean=[0.485, 0.456, 0.406],
         std=[0.229, 0.224, 0.225],
@@ -72,6 +74,7 @@ class PlantDiseaseDataset(Dataset):
 
     def __getitem__(self, idx):
         img_path, label = self.samples[idx]
+        # RGB
         image = Image.open(img_path).convert("RGB")
         if self.transform:
             image = self.transform(image)
