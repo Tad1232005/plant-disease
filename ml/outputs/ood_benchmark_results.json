@@ -1,0 +1,18 @@
+{
+  "msp": {
+    "auroc": 0.9821875,
+    "fpr95": 0.1
+  },
+  "entropy": {
+    "auroc": 0.98484375,
+    "fpr95": 0.1
+  },
+  "energy": {
+    "auroc": 0.94875,
+    "fpr95": 0.31
+  },
+  "ensemble_disagreement": {
+    "auroc": 0.99078125,
+    "fpr95": 0.03
+  }
+}
