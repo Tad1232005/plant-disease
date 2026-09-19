@@ -84,6 +84,7 @@ class DiseaseInfo(Base):
     )
 
     __table_args__ = (
+        CheckConstraint("content_version >= 1", name="ck_disease_info_content_version"),
         CheckConstraint(
             "severity_level IN ('low', 'medium', 'high')",
             name="ck_disease_info_severity_level",
@@ -92,6 +93,10 @@ class DiseaseInfo(Base):
     )
 
     # Relationship tới User đã cập nhật (nullable)
+    content_version: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=1, server_default="1"
+    )
+
     updater: Mapped[Optional["User"]] = relationship(
         "User",
         back_populates="updated_diseases",

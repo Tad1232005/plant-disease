@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 import hashlib
 import json
+import math
 from pathlib import Path
 from typing import Any
 
@@ -92,6 +93,9 @@ def load_artifact(manifest_path: str | Path) -> ModelArtifactSpec:
     classes_path = root / str(manifest["classes"])
     model_type_path = root / str(manifest["model_type_file"])
     temperature_path = root / str(manifest["temperature_file"])
+    if any(not path.resolve().is_relative_to(root) for path in
+           (weights_path, classes_path, model_type_path, temperature_path)):
+        raise RuntimeError("Artifact không được nằm ngoài thư mục bundle")
     classes_raw = _read_json(classes_path)
     type_raw = _read_json(model_type_path)
     temperature_raw = _read_json(temperature_path)
@@ -109,7 +113,7 @@ def load_artifact(manifest_path: str | Path) -> ModelArtifactSpec:
     if not isinstance(temperature_raw, dict):
         raise RuntimeError("temperature.json phải là JSON object")
     temperature = float(temperature_raw.get("temperature", 0))
-    if temperature <= 0:
+    if not math.isfinite(temperature) or temperature <= 0:
         raise RuntimeError("temperature phải lớn hơn 0")
     if int(temperature_raw.get("num_classes", -1)) != len(classes_raw):
         raise RuntimeError("num_classes trong temperature.json không khớp classes")

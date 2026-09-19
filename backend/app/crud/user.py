@@ -45,6 +45,8 @@ def get_users(
     *,
     role: str | None = None,
     created_by: int | None = None,
+    limit: int = 50,
+    offset: int = 0,
 ) -> list[User]:
     """Liệt kê user theo role và/hoặc người tạo."""
     query = db.query(User)
@@ -52,4 +54,4 @@ def get_users(
         query = query.filter(User.role == role)
     if created_by is not None:
         query = query.filter(User.created_by == created_by)
-    return query.order_by(User.created_at.desc(), User.id.desc()).all()
+    return query.order_by(User.created_at.desc(), User.id.desc()).offset(offset).limit(limit).all()

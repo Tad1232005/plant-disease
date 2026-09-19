@@ -1,6 +1,6 @@
 """API Manager quản lý Managed User của chính mình."""
 
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.orm import Session
 
 from app.api.deps import require_role
@@ -33,6 +33,8 @@ def create_managed_user(
 
 @router.get("", response_model=list[UserResponse])
 def list_managed_users(
+    limit: int = Query(50, ge=1, le=100),
+    offset: int = Query(0, ge=0),
     db: Session = Depends(get_db),
     current_manager: User = Depends(require_role("manager")),
 ) -> list[User]:
@@ -40,4 +42,5 @@ def list_managed_users(
     return user_admin_service.list_managed_users(
         db,
         manager_id=current_manager.id,
+        limit=limit, offset=offset,
     )

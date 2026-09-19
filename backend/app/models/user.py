@@ -76,7 +76,13 @@ class User(Base):
         server_default=func.now(),  # pylint: disable=not-callable
     )
 
+    status: Mapped[str] = mapped_column(
+        String(20), nullable=False, default="active", server_default="active"
+    )
+
     __table_args__ = (
+        CheckConstraint("status IN ('active', 'suspended')", name="ck_users_status"),
+        CheckConstraint("token_version >= 0", name="ck_users_token_version"),
         CheckConstraint(
             "role IN ('user', 'technician', 'manager', 'admin')",
             name="ck_users_role",

@@ -3,12 +3,17 @@
 
 Cách dùng:
     python ml/src/evaluate.py
-    # hoặc: cd ml && python src/evaluate.py
+    python ml/src/evaluate.py --model-suffix resnet50_full_data
+    # hoặc: cd ml && python src/evaluate.py --model-suffix resnet50_full_data
 
 Output:
     outputs/metrics.json              — accuracy + bảng per-class (push GitHub được)
     outputs/figures/confusion_matrix.png
     outputs/figures/confusion_matrix_errors.png
+
+LƯU Ý: luôn dùng --model-suffix để đúng model bạn vừa train (vd resnet50_full_data),
+nếu không sẽ mặc định load best_model.pt/classes.json (không hậu tố) — có thể là
+bản cũ hoặc không tồn tại nếu bạn đã đổi sang dùng run_name trong train.py.
 """
 
 import json
@@ -36,6 +41,7 @@ def save_metrics(
     classes: list[str],
     accuracy: float,
     report: dict,
+    suffix: str = None,
 ) -> Path:
     codes = class_codes(len(classes))
     per_class = []
@@ -68,7 +74,8 @@ def save_metrics(
         "per_class": per_class,
     }
 
-    path = outputs_dir / "metrics.json"
+    filename = f"metrics_{suffix}.json" if suffix else "metrics.json"
+    path = outputs_dir / filename
     with open(path, "w", encoding="utf-8") as f:
         json.dump(metrics, f, indent=2, ensure_ascii=False)
     return path
@@ -79,8 +86,10 @@ def plot_confusion_matrix(
     codes: list[str],
     figures_dir: Path,
     accuracy: float,
+    suffix: str = None,
 ) -> tuple[Path, Path]:
     figures_dir.mkdir(parents=True, exist_ok=True)
+    tag = f"_{suffix}" if suffix else ""
 
     # Ma trận đầy đủ — màu theo số lượng, không ghi số (38 class dễ nhìn hơn)
     fig, ax = plt.subplots(figsize=(14, 12))
@@ -100,7 +109,7 @@ def plot_confusion_matrix(
     plt.yticks(rotation=0, fontsize=8)
     plt.tight_layout()
 
-    full_path = figures_dir / "confusion_matrix.png"
+    full_path = figures_dir / f"confusion_matrix{tag}.png"
     fig.savefig(full_path, dpi=150)
     plt.close(fig)
 
@@ -127,7 +136,7 @@ def plot_confusion_matrix(
     plt.yticks(rotation=0, fontsize=8)
     plt.tight_layout()
 
-    errors_path = figures_dir / "confusion_matrix_errors.png"
+    errors_path = figures_dir / f"confusion_matrix_errors{tag}.png"
     fig.savefig(errors_path, dpi=150)
     plt.close(fig)
 
@@ -135,6 +144,19 @@ def plot_confusion_matrix(
 
 
 def main():
+    import argparse
+
+    parser = argparse.ArgumentParser(description="Đánh giá model trên tập test")
+    parser.add_argument(
+        "--model-suffix",
+        type=str,
+        help="Hậu tố model đã train (vd: resnet50_full_data) để load đúng "
+             "best_model_<suffix>.pt / classes_<suffix>.json / model_type_<suffix>.json. "
+             "Nếu bỏ trống, mặc định load best_model.pt/classes.json (không hậu tố).",
+    )
+    args = parser.parse_args()
+    suffix = args.model_suffix
+
     cfg = load_config()
     split_dir = ml_path(cfg["paths"]["split_dir"])
     models_dir = ml_path(cfg["paths"]["models_dir"])
@@ -142,10 +164,23 @@ def main():
     figures_dir = outputs_dir / "figures"
     figures_dir.mkdir(parents=True, exist_ok=True)
 
-    model_path = models_dir / "best_model.pt"
-    classes_path = models_dir / "classes.json"
+    if suffix:
+        model_path = models_dir / f"best_model_{suffix}.pt"
+        classes_path = models_dir / f"classes_{suffix}.json"
+        model_type_path = models_dir / f"model_type_{suffix}.json"
+        if model_type_path.exists():
+            with open(model_type_path, encoding="utf-8") as f:
+                model_type = json.load(f)["model_type"]
+        else:
+            model_type = cfg["train"].get("model_type", "mobilenet_v2")
+    else:
+        model_path = models_dir / "best_model.pt"
+        classes_path = models_dir / "classes.json"
+        model_type = cfg["train"].get("model_type", "mobilenet_v2")
+
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Device: {device}")
+    print(f"Model path: {model_path}")
 
     with open(classes_path, encoding="utf-8") as f:
         classes = json.load(f)
@@ -154,9 +189,10 @@ def main():
     batch_size = cfg["train"]["batch_size"]
     test_loader = DataLoader(test_ds, batch_size=batch_size, shuffle=False)
     print(f"Test: {len(test_ds):,} ảnh, {len(test_loader):,} batch (batch_size={batch_size})")
+    print(f"Model type: {model_type}")
 
     print("Đang load model...")
-    model = build_model(num_classes=len(classes))
+    model = build_model(num_classes=len(classes), model_type=model_type)
     model.load_state_dict(torch.load(model_path, map_location=device))
     model.to(device)
     model.eval()
@@ -179,13 +215,13 @@ def main():
     print("\n=== Classification Report ===")
     print(classification_report(all_labels, all_preds, target_names=classes))
 
-    metrics_path = save_metrics(outputs_dir, classes, accuracy, report)
+    metrics_path = save_metrics(outputs_dir, classes, accuracy, report, suffix)
     print(f"\nĐã lưu metrics tại {metrics_path}")
 
     cm = confusion_matrix(all_labels, all_preds)
     codes = class_codes(len(classes))
     print("Đang vẽ confusion matrix...")
-    full_path, errors_path = plot_confusion_matrix(cm, codes, figures_dir, accuracy)
+    full_path, errors_path = plot_confusion_matrix(cm, codes, figures_dir, accuracy, suffix)
     print(f"Đã lưu confusion matrix tại {full_path}")
     print(f"Đã lưu ma trận lỗi tại {errors_path}")
 

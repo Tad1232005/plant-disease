@@ -4,6 +4,7 @@ from typing import Tuple
 
 from fastapi import HTTPException, status
 from sqlalchemy.exc import IntegrityError
+from sqlalchemy import update
 from sqlalchemy.orm import Session
 
 from app.core.security import (
@@ -11,10 +12,35 @@ from app.core.security import (
     create_refresh_token,
     decode_token,
     verify_password,
+    hash_password,
 )
 from app.crud.user import create_user, get_user_by_email, get_user_by_username
 from app.models.user import User
 from app.schemas.user import UserCreate
+from app.services.audit_service import record_event
+
+
+def change_password(db: Session, user: User, current_password: str, new_password: str) -> None:
+    """Atomically replace the hash and invalidate all issued tokens."""
+    if not verify_password(current_password, user.password_hash):
+        raise HTTPException(status_code=400, detail="Mật khẩu hiện tại không đúng")
+    if current_password == new_password:
+        raise HTTPException(status_code=400, detail="Mật khẩu mới phải khác mật khẩu cũ")
+    result = db.execute(
+        update(User).where(
+            User.id == user.id,
+            User.password_hash == user.password_hash,
+            User.token_version == user.token_version,
+        ).values(password_hash=hash_password(new_password), token_version=User.token_version + 1).returning(User.id),
+        execution_options={"synchronize_session": False},
+    )
+    if result.scalar_one_or_none() is None:
+        db.rollback()
+        raise HTTPException(status_code=409, detail="Tài khoản vừa thay đổi; hãy đăng nhập lại")
+    record_event(db, actor_id=user.id, action="user.password_changed", resource_type="user",
+                 resource_id=user.id, details={})
+    db.commit()
+    db.refresh(user)
 
 
 def register_user(db: Session, user_in: UserCreate) -> User:
@@ -49,7 +75,7 @@ def authenticate_user(
 ) -> Tuple[str, str, User]:
     """Xác thực thông tin đăng nhập và khởi tạo cặp token."""
     user = get_user_by_username(db, username)
-    if user is None:
+    if user is None or user.status != "active":
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Sai tên đăng nhập hoặc mật khẩu",
@@ -115,7 +141,7 @@ def refresh_access_token(db: Session, refresh_token: str) -> Tuple[str, str]:
             detail="Người dùng không tồn tại",
         )
 
-    if user.token_version != token_version:
+    if user.status != "active" or user.token_version != token_version:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Refresh token đã hết hiệu lực",
@@ -133,6 +159,5 @@ def refresh_access_token(db: Session, refresh_token: str) -> Tuple[str, str]:
 
 def revoke_refresh_tokens(db: Session, user: User) -> None:
     """Vô hiệu hóa toàn bộ access/refresh token đã phát hành của user."""
-    user.token_version += 1
-    db.add(user)
+    db.execute(update(User).where(User.id == user.id).values(token_version=User.token_version + 1))
     db.commit()

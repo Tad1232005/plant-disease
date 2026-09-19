@@ -15,6 +15,8 @@ from app.schemas.predict import (
     PredictCapabilitiesResponse,
     PredictResponse,
     RequestedMode,
+    InferenceStrategy,
+    ModelType,
 )
 from app.services.image_storage_service import UploadValidationError, validate_upload
 from app.services.prediction_workflow_service import complete_prediction
@@ -45,10 +47,15 @@ async def predict_plant_disease(
     file: UploadFile = File(...),
     farm_id: int | None = Form(default=None, ge=1),
     mode: RequestedMode = Form(default="auto"),
+    strategy: InferenceStrategy = Form(default="ensemble"),
+    model_type: ModelType | None = Form(default=None),
     db: Session = Depends(get_db),
     current_user: User | None = Depends(get_current_user_optional),
 ) -> dict:
     """Predict cho Guest; lưu Scan/TopK và kiểm tra Farm nếu đã đăng nhập."""
+    if (strategy == "single") != (model_type is not None):
+        await file.close()
+        raise HTTPException(status_code=422, detail="single cần model_type; ensemble không nhận model_type.")
     if current_user is None and farm_id is not None:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -70,7 +77,7 @@ async def predict_plant_disease(
             current_user.role if current_user else None,
             mode,
         )
-        active_models = get_active_models(db, resolved_mode)
+        active_models = get_active_models(db, resolved_mode, model_type=model_type)
     except ModeNotAllowedError as exc:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -110,6 +117,8 @@ async def predict_plant_disease(
             detail="Mô hình tạm thời không thể xử lý ảnh.",
         ) from exc
 
+    result["inference_strategy"] = strategy
+    result["selected_model_type"] = model_type
     return await run_in_threadpool(
         complete_prediction,
         db,

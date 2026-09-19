@@ -3,10 +3,10 @@
 from fastapi import HTTPException, status
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
+from sqlalchemy import select
 
 from app.crud import farm as farm_crud
 from app.crud import farm_member as member_crud
-from app.crud import user as user_crud
 from app.models.farm import Farm
 from app.models.farm_member import FarmMember
 from app.models.user import User
@@ -36,7 +36,8 @@ def add_member(
 ) -> FarmMember:
     """Gán một Managed User của Manager vào Farm do họ sở hữu."""
     _get_owned_farm(db, manager, farm_id)
-    user = user_crud.get_user_by_id(db, user_id)
+    user = db.execute(select(User).where(User.id == user_id).with_for_update()
+                      .execution_options(populate_existing=True)).scalar_one_or_none()
     if user is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -47,6 +48,8 @@ def add_member(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Chỉ được gán User do chính Manager này tạo",
         )
+    if user.status != "active":
+        raise HTTPException(status_code=409, detail="Không thể gán tài khoản đang bị khóa")
     if member_crud.get_membership(
         db,
         farm_id=farm_id,
@@ -84,10 +87,12 @@ def list_members(
     *,
     manager: User,
     farm_id: int,
+    limit: int = 50,
+    offset: int = 0,
 ) -> list[FarmMember]:
     """Liệt kê thành viên nếu Manager sở hữu Farm."""
     _get_owned_farm(db, manager, farm_id)
-    return member_crud.get_members_by_farm(db, farm_id)
+    return member_crud.get_members_by_farm(db, farm_id, limit=limit, offset=offset)
 
 
 def remove_member(

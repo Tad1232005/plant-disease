@@ -3,6 +3,8 @@
 
 paths:
   filtered_dir: data/filtered      # Data gốc — 38 class sau bước tải từ HF
+  plantdoc_dir: data/plantdoc      # Data PlantDoc (ảnh thực tế, nền phức tạp)
+  manual_add_dir: data/manual_add  # Data thủ công (11 class còn thiếu)
   split_dir: data/split            # Lọc class + chia train/val/test
   metadata_dir: data/metadata      # leaf-map.json (gitignore qua ml/data/)
   models_dir: models               # best_model.pt, classes.json
@@ -64,4 +66,6 @@ train:
   epochs: 15
   lr: 0.0001
   image_size: 224
-  num_workers: 2
+  num_workers: 4
+  model_type: mobilenet_v2  # mobilenet_v2, resnet50, efficientnet_b0
+  run_name: mobilenet_v2_y 

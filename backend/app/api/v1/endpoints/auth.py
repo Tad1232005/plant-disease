@@ -11,19 +11,38 @@ from fastapi import (
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user
+from app.api.auth_origin import require_trusted_auth_origin
+from app.api.auth_rate_limit import require_auth_rate_limit
 from app.core.config import settings
 from app.db.session import get_db
 from app.models.user import User
-from app.schemas.auth import LoginRequest, TokenResponse
+from app.schemas.auth import ChangePasswordRequest, LoginRequest, TokenResponse
 from app.schemas.user import UserCreate, UserResponse
 from app.services.auth_service import (
     authenticate_user,
     refresh_access_token,
     register_user,
     revoke_refresh_tokens,
+    change_password,
 )
 
-router = APIRouter(prefix="/auth", tags=["Auth"])
+router = APIRouter(prefix="/auth", tags=["Auth"], dependencies=[
+    Depends(require_trusted_auth_origin), Depends(require_auth_rate_limit),
+])
+
+
+@router.post("/change-password", status_code=status.HTTP_204_NO_CONTENT)
+def change_my_password(
+    data: ChangePasswordRequest,
+    response: Response,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> None:
+    change_password(db, current_user, data.current_password, data.new_password)
+    response.delete_cookie(
+        key=settings.REFRESH_COOKIE_NAME, path=settings.REFRESH_COOKIE_PATH,
+        secure=settings.COOKIE_SECURE, httponly=True, samesite=settings.COOKIE_SAMESITE,
+    )
 
 
 def _set_refresh_cookie(response: Response, token: str) -> None:

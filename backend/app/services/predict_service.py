@@ -12,6 +12,7 @@ from threading import BoundedSemaphore, Lock
 import time
 from typing import Any, Literal, Sequence
 import logging
+from collections import OrderedDict
 
 import torch
 import torch.nn as nn
@@ -44,7 +45,7 @@ MAX_MODE_BY_ROLE: dict[str | None, InferenceMode] = {
 MODE_RANK: dict[InferenceMode, int] = {
     "basic": 1, "standard": 2, "advanced": 3
 }
-POLICY_VERSION = "ensemble-baseline-v1"
+POLICY_VERSION = "ensemble-rgb224-v3-selection"
 
 
 class ModelConfigurationError(RuntimeError):
@@ -94,13 +95,16 @@ def capabilities_for_role(role: str | None) -> dict[str, Any]:
         "default_mode": max_mode,
         "allowed_modes": modes,
         "models_by_mode": {mode: list(MODEL_TYPES_BY_MODE[mode]) for mode in modes},
+        "allowed_model_types": list(MODEL_TYPES_BY_MODE[max_mode]),
         "policy_version": POLICY_VERSION,
     }
 
 
-def get_active_models(db: Session, mode: InferenceMode) -> list[ActiveModelSpec]:
+def get_active_models(db: Session, mode: InferenceMode, model_type: str | None = None) -> list[ActiveModelSpec]:
     """Lấy đúng active version của từng model type theo thứ tự policy."""
-    required = MODEL_TYPES_BY_MODE[mode]
+    if model_type is not None and model_type not in MODEL_TYPES_BY_MODE[mode]:
+        raise ModeNotAllowedError(f"Mode {mode} không được dùng model {model_type}")
+    required = (model_type,) if model_type is not None else MODEL_TYPES_BY_MODE[mode]
     rows = (
         db.query(ModelVersion)
         .filter(
@@ -154,7 +158,7 @@ class PredictService:
         if settings.MAX_CONCURRENT_INFERENCES < 1:
             raise ValueError("MAX_CONCURRENT_INFERENCES phải lớn hơn hoặc bằng 1")
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        self._cache: dict[tuple[int, str | None], LoadedModel] = {}
+        self._cache: OrderedDict[ActiveModelSpec, LoadedModel] = OrderedDict()
         self._load_lock = Lock()
         self._capacity = BoundedSemaphore(settings.MAX_CONCURRENT_INFERENCES)
         # Dùng chung executor giữa các request để không tạo 2-3 thread mới
@@ -165,8 +169,7 @@ class PredictService:
         )
         self.transform = transforms.Compose(
             [
-                transforms.Resize(256),
-                transforms.CenterCrop(224),
+                transforms.Resize((224, 224), interpolation=transforms.InterpolationMode.BILINEAR, antialias=True),
                 transforms.ToTensor(),
                 transforms.Normalize(
                     mean=[0.485, 0.456, 0.406],
@@ -192,15 +195,15 @@ class PredictService:
         raise ModelConfigurationError(f"model_type chưa được hỗ trợ: {model_type}")
 
     def _load(self, spec: ActiveModelSpec) -> LoadedModel:
-        key = (spec.id, spec.sha256)
-        cached = self._cache.get(key)
-        if cached is not None:
-            return cached
+        key = spec
         with self._load_lock:
             cached = self._cache.get(key)
             if cached is not None:
+                self._cache.move_to_end(key)
                 return cached
             try:
+                if not math.isfinite(spec.temperature) or spec.temperature <= 0:
+                    raise ValueError("Temperature phải hữu hạn và dương")
                 if spec.sha256:
                     artifact = load_artifact(
                         Path(spec.file_path).parent / "manifest.json"
@@ -217,8 +220,10 @@ class PredictService:
                     ):
                         raise ValueError("Artifact hiện tại không khớp metadata DB")
                 classes_raw = json.loads(Path(spec.classes_path).read_text(encoding="utf-8"))
-                if not isinstance(classes_raw, list) or not classes_raw:
-                    raise ValueError("classes.json phải là list không rỗng")
+                if (not isinstance(classes_raw, list) or len(classes_raw) < 2
+                        or any(not isinstance(label, str) or not label.strip() for label in classes_raw)
+                        or len(set(classes_raw)) != len(classes_raw)):
+                    raise ValueError("classes.json phải chứa ít nhất hai nhãn duy nhất")
                 classes = [str(item) for item in classes_raw]
                 model = self._build_model(spec.model_type, len(classes))
                 state_dict = torch.load(
@@ -233,6 +238,8 @@ class PredictService:
                 ) from exc
             loaded = LoadedModel(model=model, classes=classes)
             self._cache[key] = loaded
+            while len(self._cache) > 6:
+                self._cache.popitem(last=False)
             return loaded
 
     def _predict_one(self, tensor: torch.Tensor, spec: ActiveModelSpec) -> dict[str, Any]:
@@ -240,6 +247,8 @@ class PredictService:
         loaded = self._load(spec)
         with torch.no_grad():
             logits = loaded.model(tensor)
+            if logits.shape != (1, len(loaded.classes)) or not torch.isfinite(logits).all():
+                raise ModelConfigurationError("Logits không hợp lệ")
             calibrated_logits = logits / spec.temperature
             probs = F.softmax(calibrated_logits, dim=1)[0].detach().cpu()
             energy = float(-spec.temperature * torch.logsumexp(calibrated_logits[0], dim=0))
@@ -264,7 +273,7 @@ class PredictService:
             "top1_top2_margin": round(margin, 6),
             "entropy": round(entropy, 6),
             "energy_score": round(energy, 6),
-            "accepted": confidence >= settings.CONFIDENCE_THRESHOLD,
+            "accepted": confidence >= settings.CONFIDENCE_THRESHOLD and margin >= settings.TOP1_MARGIN_THRESHOLD,
             "latency_ms": round((time.perf_counter() - started) * 1000, 3),
             "error_code": None,
             "top_k": top_k,
@@ -336,7 +345,10 @@ class PredictService:
             ]
 
         successful = [item for item in results if item["error_code"] is None]
-        minimum = 2 if mode == "advanced" else 1
+        if not ordered_specs:
+            raise ModelConfigurationError("Cần ít nhất một model được chọn")
+        # Explicit single selection in an Advanced tier is not degraded ensemble.
+        minimum = min(2 if mode == "advanced" else 1, len(ordered_specs))
         if len(successful) < minimum:
             raise ModelConfigurationError(
                 f"Mode {mode} cần ít nhất {minimum} model chạy thành công"
@@ -364,17 +376,21 @@ class PredictService:
             for rank, (conf, idx) in enumerate(zip(topk_conf, topk_idx), start=1)
         ]
 
-        validation_status = "accepted"
-        rejection_reason = None
-        if confidence < settings.CONFIDENCE_THRESHOLD:
-            validation_status = "low_confidence"
-            rejection_reason = "confidence_below_threshold"
-        elif margin < settings.TOP1_MARGIN_THRESHOLD:
-            validation_status = "ambiguous"
-            rejection_reason = "top1_top2_margin_too_small"
-        elif js_divergence > settings.JS_DIVERGENCE_THRESHOLD:
-            validation_status = "ambiguous"
-            rejection_reason = "model_disagreement_too_high"
+        checks = [
+            {"rule": "confidence_below_threshold", "value": confidence,
+             "threshold": settings.CONFIDENCE_THRESHOLD, "comparison": ">=",
+             "passed": confidence >= settings.CONFIDENCE_THRESHOLD},
+            {"rule": "top1_top2_margin_too_small", "value": margin,
+             "threshold": settings.TOP1_MARGIN_THRESHOLD, "comparison": ">=",
+             "passed": margin >= settings.TOP1_MARGIN_THRESHOLD},
+            {"rule": "model_disagreement_too_high", "value": js_divergence,
+             "threshold": settings.JS_DIVERGENCE_THRESHOLD, "comparison": "<=",
+             "passed": js_divergence <= settings.JS_DIVERGENCE_THRESHOLD},
+        ]
+        failed_rules = [check["rule"] for check in checks if not check["passed"]]
+        rejection_reason = failed_rules[0] if failed_rules else None
+        validation_status = ("accepted" if not failed_rules else
+                             "low_confidence" if rejection_reason == "confidence_below_threshold" else "ambiguous")
 
         agreeing = sum(item["predicted_label"] == candidate_label for item in successful)
         if len(successful) < len(ordered_specs):
@@ -418,6 +434,10 @@ class PredictService:
             "energy_score": round(sum(energy_values) / len(energy_values), 6),
             "ood_score": round(ood_score, 6),
             "policy_version": POLICY_VERSION,
+            "decision_details": {"checks": checks, "failed_rules": failed_rules,
+                                 "aggregation": "mean_calibrated_probabilities",
+                                 "js_normalization": "log(number_of_successful_models)",
+                                 "effective_model_types": [item["model_type"] for item in successful]},
             "model_results": public_results,
         }
 

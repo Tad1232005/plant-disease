@@ -3,6 +3,7 @@
 from typing import Any
 
 from fastapi import APIRouter, Depends, Query, status
+from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user
@@ -13,6 +14,20 @@ from app.schemas.scan import ScanDetailResponse, ScanHistoryItem
 from app.services import scan_service
 
 router = APIRouter(prefix="/scans", tags=["Scans"])
+
+
+@router.get("/{scan_id}/image", response_class=FileResponse)
+def get_scan_image(
+    scan_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> FileResponse:
+    path = scan_service.get_scan_image(db, current_user, scan_id)
+    return FileResponse(
+        path,
+        media_type="image/png" if path.suffix.lower() == ".png" else "image/jpeg",
+        headers={"Cache-Control": "private, no-store", "X-Content-Type-Options": "nosniff"},
+    )
 
 
 @router.get("/history", response_model=list[ScanHistoryItem])

@@ -1,7 +1,7 @@
 """Schemas cho lịch sử và chi tiết chẩn đoán."""
 
 from datetime import datetime
-from typing import Optional
+from typing import Any, Optional
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -57,6 +57,7 @@ class ScanDetailResponse(BaseModel):
     """Chi tiết một scan, thông tin bệnh và top-3 dự đoán."""
 
     id: int
+    prediction_context: Optional[dict[str, Any]] = None
     user_id: int
     farm_id: Optional[int] = None
     image_path: str

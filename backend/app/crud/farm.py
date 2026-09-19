@@ -18,23 +18,26 @@ def create_farm(db: Session, user_id: int, farm_in: FarmCreate) -> Farm:
     return db_farm
 
 
-def get_farms_by_user(db: Session, user_id: int) -> list[Farm]:
+def get_farms_by_user(db: Session, user_id: int, *, limit: int = 50, offset: int = 0) -> list[Farm]:
     """Lấy toàn bộ farm thuộc về 1 user."""
     return (
         db.query(Farm)
         .filter(Farm.owner_id == user_id, Farm.archived_at.is_(None))
         .order_by(Farm.created_at.desc(), Farm.id.desc())
+        .offset(offset).limit(limit)
         .all()
     )
 
 
-def get_farm_by_id(db: Session, farm_id: int) -> Farm | None:
+def get_farm_by_id(db: Session, farm_id: int, *, for_update: bool = False) -> Farm | None:
     """Lấy 1 farm theo id."""
-    return (
+    query = (
         db.query(Farm)
         .filter(Farm.id == farm_id, Farm.archived_at.is_(None))
-        .first()
     )
+    if for_update:
+        query = query.populate_existing().with_for_update()
+    return query.first()
 
 
 def update_farm(db: Session, db_farm: Farm, farm_in: FarmUpdate) -> Farm:

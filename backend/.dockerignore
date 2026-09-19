@@ -1,14 +1,27 @@
-.git
-.gitignore
+# Never bake local secrets, user data or virtual environments into an image.
 .env
-.venv
-venv
-__pycache__
+.env.*
+*.env
+.venv/
+venv/
+__pycache__/
+**/__pycache__/
 *.py[cod]
-.pytest_cache
-.mypy_cache
-.typecheck_cache
-tests
-docs
+.pytest_cache/
+.mypy_cache/
+.typecheck_cache/
+.git/
+.gitignore
+*.log
+backups/
+benchmark-results/
+**/*.dump
+docs/
+tests/
+storage/restore-*/
 storage/uploads/*
+!storage/uploads/.gitkeep
 storage/gradcam/*
+!storage/gradcam/.gitkeep
+# Models must be supplied separately via read-only runtime storage.
+app/ml_assets/models/**/*.pt

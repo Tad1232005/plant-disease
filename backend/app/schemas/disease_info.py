@@ -11,6 +11,8 @@ SeverityLevel = Literal["low", "medium", "high"]
 class DiseaseInfoCreate(BaseModel):
     """Dữ liệu đầu vào khi Admin thêm bệnh mới."""
 
+    model_config = ConfigDict(extra="forbid")
+
     label_key: str = Field(min_length=1, max_length=50)
     disease_name: str = Field(min_length=1, max_length=100)
     description: Optional[str] = None
@@ -29,6 +31,15 @@ class DiseaseInfoCreate(BaseModel):
 class DiseaseInfoUpdate(BaseModel):
     """Dữ liệu đầu vào khi Admin sửa nội dung bệnh."""
 
+    model_config = ConfigDict(extra="forbid")
+
+    @field_validator("severity_level")
+    @classmethod
+    def reject_null_severity(cls, value: SeverityLevel | None) -> SeverityLevel:
+        if value is None:
+            raise ValueError("Mức độ bệnh không được là null")
+        return value
+
     disease_name: Optional[str] = Field(
         default=None, min_length=1, max_length=100)
     description: Optional[str] = None
@@ -39,7 +50,7 @@ class DiseaseInfoUpdate(BaseModel):
     @classmethod
     def strip_disease_name(cls, value: str | None) -> str | None:
         if value is None:
-            return value
+            raise ValueError("Tên bệnh không được là null")
         value = value.strip()
         if not value:
             raise ValueError("Tên bệnh không được để trống")
@@ -50,6 +61,7 @@ class DiseaseInfoResponse(BaseModel):
     """Dữ liệu trả về khi tra cứu thông tin bệnh."""
 
     id: int
+    content_version: int
     label_key: str
     disease_name: str
     description: Optional[str] = None

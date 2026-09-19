@@ -3,6 +3,13 @@ from typing import Literal, Optional
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
 
 UserRole = Literal["user", "technician", "manager", "admin"]
+UserStatus = Literal["active", "suspended"]
+
+
+class UserStatusRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+    status: UserStatus
+    reason: str = Field(min_length=1, max_length=1000)
 
 
 class UserCreate(BaseModel):
@@ -47,6 +54,7 @@ class UserResponse(BaseModel):
     username: str
     email: Optional[str] = None
     role: str
+    status: UserStatus
     full_name: Optional[str] = None
     created_by: Optional[int] = None
 

@@ -15,6 +15,7 @@ from app.models.scan import Scan
 from app.models.scan_topk import ScanTopK
 from app.models.scan_model_result import ScanModelResult
 from app.models.user import User
+from app.schemas.predict import PredictResponse
 from app.services.image_storage_service import (
     ValidatedImage,
     delete_stored_image,
@@ -32,15 +33,16 @@ def _resolve_farm(
     if farm_id is None:
         return None, "not_requested", None
 
-    farm = farm_crud.get_farm_by_id(db, farm_id)
+    farm = farm_crud.get_farm_by_id(db, farm_id, for_update=True)
     allowed = False
     if farm is not None and user.role == "manager":
         allowed = farm.owner_id == user.id
     elif farm is not None and user.role == "user" and user.created_by is not None:
-        allowed = member_crud.get_membership(
+        allowed = farm.owner_id == user.created_by and member_crud.get_membership(
             db,
             farm_id=farm_id,
             user_id=user.id,
+            for_update=True,
         ) is not None
 
     if allowed:
@@ -53,7 +55,7 @@ def _resolve_farm(
 
 
 def _disease_payload(db: Session, result: dict[str, Any]) -> dict[str, Any]:
-    if not result["is_valid_leaf"]:
+    if result["validation_status"] != "accepted" or not result.get("label"):
         return {
             "warning": (
                 "Ảnh không đủ tin cậy hoặc không khớp rõ một nhãn hiện có; "
@@ -66,7 +68,7 @@ def _disease_payload(db: Session, result: dict[str, Any]) -> dict[str, Any]:
         }
     disease = disease_crud.get_disease_info_by_label(db, result["label"])
     return {
-        "warning": None,
+        "warning": "Kết quả phân loại tham khảo; hệ thống chưa xác minh ảnh là lá hoặc thuộc loài được hỗ trợ.",
         "disease_name": disease.disease_name if disease else None,
         "description": disease.description if disease else None,
         "treatment": disease.treatment if disease else None,
@@ -83,6 +85,11 @@ def complete_prediction(
     requested_farm_id: int | None,
 ) -> dict[str, Any]:
     """Ghép metadata và persist đúng một Scan/TopK cho user đăng nhập."""
+    # Status is authoritative; never let a stale legacy flag expose treatment.
+    result = dict(result)
+    result["is_valid_leaf"] = result["validation_status"] == "accepted"
+    if not result["is_valid_leaf"]:
+        result["label"] = None
     disease_payload = _disease_payload(db, result)
     base_response = {
         "label": result["label"],
@@ -91,6 +98,9 @@ def complete_prediction(
         "top_k": result["top_k"],
         "model_version": result["model_version"],
         "inference_mode": result["inference_mode"],
+        "inference_strategy": result.get("inference_strategy", "ensemble"),
+        "selected_model_type": result.get("selected_model_type"),
+        "decision_details": result.get("decision_details", {}),
         "validation_status": result["validation_status"],
         "rejection_reason": result["rejection_reason"],
         "agreement_status": result["agreement_status"],
@@ -108,13 +118,21 @@ def complete_prediction(
     }
 
     if current_user is None:
-        return {
+        return PredictResponse.model_validate({
             **base_response,
             "scan_id": None,
             "farm_id": None,
             "farm_assignment_status": "not_applicable",
-        }
+        }).model_dump()
 
+    # Account state may change while inference runs. This is persistence/RBAC,
+    # not a change to model execution or prediction thresholds.
+    expected_version = current_user.token_version
+    user = db.query(User).filter(User.id == current_user.id).populate_existing().with_for_update().first()
+    if user is None or user.status != "active" or user.token_version != expected_version:
+        db.rollback()
+        raise HTTPException(status_code=401, detail="Phiên đăng nhập không còn hiệu lực; không lưu Scan")
+    current_user = user
     assigned_farm_id, farm_status, farm_warning = _resolve_farm(
         db,
         current_user,
@@ -130,6 +148,8 @@ def complete_prediction(
 
     image_path: str | None = None
     try:
+        PredictResponse.model_validate({**base_response, "farm_id": assigned_farm_id,
+                                       "farm_assignment_status": farm_status})
         image_path = save_image(image)
         scan = Scan(
             user_id=current_user.id,
@@ -150,6 +170,10 @@ def complete_prediction(
             energy_score=result["energy_score"],
             ood_score=result["ood_score"],
             policy_version=result["policy_version"],
+            prediction_context={"schema_version": 1,
+                                "inference_strategy": base_response["inference_strategy"],
+                                "selected_model_type": base_response["selected_model_type"],
+                                "decision_details": base_response["decision_details"]},
         )
         db.add(scan)
         db.flush()
@@ -183,8 +207,8 @@ def complete_prediction(
                 for item in result["model_results"]
             ]
         )
+        scan_id = scan.id
         db.commit()
-        db.refresh(scan)
     except (OSError, SQLAlchemyError, KeyError, TypeError, ValueError) as exc:
         db.rollback()
         if image_path is not None:
@@ -200,7 +224,7 @@ def complete_prediction(
 
     return {
         **base_response,
-        "scan_id": scan.id,
+        "scan_id": scan_id,
         "farm_id": assigned_farm_id,
         "farm_assignment_status": farm_status,
     }

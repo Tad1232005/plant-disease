@@ -22,7 +22,8 @@ from app.db.base import Base  # noqa: E402
 
 # 3. Lấy đối tượng Alembic Config & Ép kiểu URL cho Pydantic v2
 config = context.config
-config.set_main_option("sqlalchemy.url", str(settings.DATABASE_URL))
+# ConfigParser treats percent escapes in URL-encoded passwords as interpolation.
+config.set_main_option("sqlalchemy.url", str(settings.DATABASE_URL).replace("%", "%%"))
 
 # Cấu hình logging
 if config.config_file_name is not None:

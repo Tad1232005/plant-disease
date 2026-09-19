@@ -1,6 +1,7 @@
 """Business logic cho Scan API theo quyền sở hữu."""
 
 from typing import Any
+from pathlib import Path
 import json
 import logging
 
@@ -11,9 +12,17 @@ from app.crud import disease_info as disease_crud
 from app.crud import scan as scan_crud
 from app.models.scan import Scan
 from app.models.user import User
-from app.services.image_storage_service import delete_stored_image
+from app.services.image_storage_service import delete_stored_image, resolve_stored_image
 
 logger = logging.getLogger(__name__)
+
+
+def get_scan_image(db: Session, current_user: User, scan_id: int) -> Path:
+    scan = _get_owned_scan(db, current_user, scan_id)
+    path = resolve_stored_image(scan.image_path)
+    if path is None:
+        raise HTTPException(status_code=404, detail="Không tìm thấy ảnh scan")
+    return path
 
 
 def _parse_topk(raw_value: str | None, *, scan_id: int) -> list[dict[str, Any]]:
@@ -70,7 +79,7 @@ def get_scan_detail(
     """Trả chi tiết scan sở hữu, kèm disease info nếu có."""
     scan = _get_owned_scan(db, current_user, scan_id)
     disease = None
-    if scan.is_valid_leaf and scan.predicted_label is not None:
+    if scan.validation_status == "accepted" and scan.is_valid_leaf and scan.predicted_label is not None:
         disease = disease_crud.get_disease_info_by_label(
             db,
             scan.predicted_label,
@@ -79,6 +88,7 @@ def get_scan_detail(
 
     return {
         "id": scan.id,
+        "prediction_context": scan.prediction_context,
         "user_id": scan.user_id,
         "farm_id": scan.farm_id,
         "image_path": scan.image_path,

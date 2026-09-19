@@ -96,6 +96,16 @@ async def validate_upload(file: UploadFile) -> ValidatedImage:
             "Kích thước pixel của ảnh vượt quá giới hạn cho phép.",
         )
 
+    # verify() alone does not decode JPEG pixels, so truncated streams may pass.
+    try:
+        with Image.open(io.BytesIO(data)) as decoded:
+            decoded.load()
+    except (OSError, ValueError) as exc:
+        raise UploadValidationError(
+            status.HTTP_422_UNPROCESSABLE_CONTENT,
+            "Không thể giải mã đầy đủ ảnh; vui lòng gửi lại ảnh gốc.",
+        ) from exc
+
     return ValidatedImage(
         data=bytes(data),
         extension=extension,
@@ -120,8 +130,8 @@ def save_image(image: ValidatedImage) -> str:
     return f"storage/uploads/{target.name}"
 
 
-def delete_stored_image(image_path: str) -> bool:
-    """Chỉ xóa file nằm bên trong UPLOAD_DIR; từ chối path traversal."""
+def resolve_stored_image(image_path: str) -> Path | None:
+    """Resolve only files inside the configured private upload directory."""
     upload_dir = Path(settings.UPLOAD_DIR).resolve()
     candidate = Path(image_path)
     normalized = image_path.replace("\\", "/")
@@ -132,6 +142,16 @@ def delete_stored_image(image_path: str) -> bool:
         candidate = BASE_DIR / candidate
     target = candidate.resolve()
     if not target.is_relative_to(upload_dir) or not target.is_file():
+        return None
+    if target.suffix.lower() not in {".jpg", ".jpeg", ".png"}:
+        return None
+    return target
+
+
+def delete_stored_image(image_path: str) -> bool:
+    """Delete only a validated private image path."""
+    target = resolve_stored_image(image_path)
+    if target is None:
         return False
     target.unlink()
     return True

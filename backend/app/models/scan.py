@@ -15,6 +15,7 @@ from sqlalchemy import (
     func,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.dialects.postgresql import JSONB
 
 from app.db.base import Base
 
@@ -103,6 +104,9 @@ class Scan(Base):
     energy_score: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     ood_score: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     policy_version: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
+    prediction_context: Mapped[Optional[dict]] = mapped_column(JSONB, nullable=True)
+    # Keep the already-applied a7 revision compatible with this checkout.
+    inference_snapshot: Mapped[Optional[dict]] = mapped_column(JSONB, nullable=True)
 
     created_at: Mapped[datetime] = mapped_column(
         DateTime,

@@ -260,6 +260,8 @@ def seed_database(
 
 def run() -> SeedSummary:
     """Nạp cấu hình, mở session và chạy seed."""
+    if settings.APP_ENV == "production":
+        raise RuntimeError("Demo seed is disabled in production; use scripts.bootstrap_admin")
     model_specs = discover_artifacts(settings.MODEL_ARTIFACT_ROOT)
     labels = list(model_specs[0].classes)
     demo_password = os.getenv("SEED_DEMO_PASSWORD", "Demo123321!")

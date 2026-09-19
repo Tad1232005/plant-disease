@@ -1,6 +1,6 @@
 """API Manager quản lý thành viên của Farm sở hữu."""
 
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.orm import Session
 
 from app.api.deps import require_role
@@ -39,6 +39,8 @@ def add_farm_member(
 )
 def list_farm_members(
     farm_id: int,
+    limit: int = Query(50, ge=1, le=100),
+    offset: int = Query(0, ge=0),
     db: Session = Depends(get_db),
     current_manager: User = Depends(require_role("manager")),
 ) -> list[FarmMember]:
@@ -47,6 +49,7 @@ def list_farm_members(
         db,
         manager=current_manager,
         farm_id=farm_id,
+        limit=limit, offset=offset,
     )
 
 

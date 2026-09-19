@@ -5,6 +5,7 @@ from fastapi import HTTPException, status
 from app.crud import farm as farm_crud
 from app.schemas.farm import FarmCreate, FarmUpdate
 from app.models.user import User
+from app.services.account_control_service import lock_active_actor
 
 
 def _check_owner(farm, current_user: User) -> None:
@@ -17,12 +18,13 @@ def _check_owner(farm, current_user: User) -> None:
 
 def create_farm(db: Session, current_user: User, farm_in: FarmCreate):
     """Tạo farm mới cho user hiện tại."""
+    current_user = lock_active_actor(db, current_user, {"manager"})
     return farm_crud.create_farm(db, current_user.id, farm_in)
 
 
-def list_farms(db: Session, current_user: User):
+def list_farms(db: Session, current_user: User, *, limit: int = 50, offset: int = 0):
     """Lấy danh sách farm của user hiện tại."""
-    return farm_crud.get_farms_by_user(db, current_user.id)
+    return farm_crud.get_farms_by_user(db, current_user.id, limit=limit, offset=offset)
 
 
 def get_farm(db: Session, current_user: User, farm_id: int):

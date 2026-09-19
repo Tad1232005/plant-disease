@@ -1,6 +1,6 @@
 """API endpoint quản lý Farm."""
 
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.orm import Session
 
 from app.db.session import get_db
@@ -28,11 +28,13 @@ def create_farm(
 
 @router.get("", response_model=list[FarmResponse])
 def list_farms(
+    limit: int = Query(50, ge=1, le=100),
+    offset: int = Query(0, ge=0),
     db: Session = Depends(get_db),
     current_user: User = Depends(require_role("manager")),
 ):
     """Manager lấy danh sách farm do chính mình sở hữu."""
-    return farm_service.list_farms(db, current_user)
+    return farm_service.list_farms(db, current_user, limit=limit, offset=offset)
 
 
 @router.get("/{farm_id}", response_model=FarmResponse)

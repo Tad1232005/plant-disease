@@ -2,10 +2,21 @@
 
 from typing import Literal, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
+
+
+class InputAssessment(BaseModel):
+    """Technical input checks are not botanical identification."""
+
+    leaf_detection_status: Literal["not_performed"] = "not_performed"
+    quality_status: Literal["not_assessed"] = "not_assessed"
+    scope: str = "Ảnh cận cảnh một lá, đủ sáng và rõ nét; chỉ hỗ trợ các nhãn đã học."
+    limitations: str = "Policy đạt không xác nhận ảnh là lá hoặc chẩn đoán chắc chắn đúng."
 
 InferenceMode = Literal["basic", "standard", "advanced"]
 RequestedMode = Literal["auto", "basic", "standard", "advanced"]
+InferenceStrategy = Literal["ensemble", "single"]
+ModelType = Literal["efficientnet_b0", "mobilenet_v2", "resnet50"]
 ValidationStatus = Literal["accepted", "low_confidence", "ambiguous", "model_error"]
 AgreementStatus = Literal["single_model", "agreed", "disagreed", "degraded"]
 
@@ -17,6 +28,7 @@ class TopKResult(BaseModel):
 
 
 class ModelPredictionResponse(BaseModel):
+    model_config = ConfigDict(allow_inf_nan=False)
     model_version_id: int
     version_name: str
     model_type: Literal["mobilenet_v2", "efficientnet_b0", "resnet50"]
@@ -38,13 +50,18 @@ FarmAssignmentStatus = Literal[
 
 
 class PredictResponse(BaseModel):
+    model_config = ConfigDict(allow_inf_nan=False)
     # label=None nghĩa là policy từ chối chẩn đoán; top_k vẫn giữ để audit.
     label: Optional[str] = None
     confidence: float = Field(..., ge=0, le=1)
-    is_valid_leaf: bool
+    is_valid_leaf: bool = Field(description="Legacy: policy accepted, KHÔNG phải kết quả nhận diện lá.", deprecated=True)
+    input_assessment: InputAssessment = Field(default_factory=InputAssessment)
     top_k: list[TopKResult]
     model_version: str = Field(..., description="Primary version (legacy compatibility)")
     inference_mode: InferenceMode
+    inference_strategy: InferenceStrategy = "ensemble"
+    selected_model_type: Optional[ModelType] = None
+    decision_details: dict = Field(default_factory=dict, description="Raw decision metrics, thresholds and every failed rule; not a leaf detector.")
     validation_status: ValidationStatus
     rejection_reason: Optional[str] = None
     agreement_status: AgreementStatus
@@ -55,7 +72,7 @@ class PredictResponse(BaseModel):
     ensemble_entropy: float = Field(..., ge=0, le=1)
     js_divergence: float = Field(..., ge=0, le=1)
     energy_score: float
-    ood_score: float = Field(..., ge=0, le=1)
+    ood_score: float = Field(..., ge=0, le=1, description="Heuristic bất định, không phải xác suất ảnh không phải lá.")
     policy_version: str
     model_results: list[ModelPredictionResponse]
     scan_id: Optional[int] = None
@@ -69,8 +86,12 @@ class PredictResponse(BaseModel):
 
 
 class PredictCapabilitiesResponse(BaseModel):
+    input_assessment: InputAssessment = Field(default_factory=InputAssessment)
     role: Literal["guest", "user", "manager", "technician", "admin"]
     default_mode: InferenceMode
     allowed_modes: list[InferenceMode]
     models_by_mode: dict[str, list[str]]
+    allowed_model_types: list[ModelType] = Field(default_factory=list)
+    supported_strategies: list[InferenceStrategy] = ["ensemble", "single"]
+    default_strategy: InferenceStrategy = "ensemble"
     policy_version: str

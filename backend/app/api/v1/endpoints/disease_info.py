@@ -1,6 +1,6 @@
 """API endpoint tra cứu và quản lý thông tin bệnh."""
 
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.orm import Session
 
 from app.db.session import get_db
@@ -15,9 +15,13 @@ router = APIRouter(prefix="/disease-info", tags=["Disease Info"])
 
 
 @router.get("", response_model=list[DiseaseInfoResponse])
-def list_diseases(db: Session = Depends(get_db)):
+def list_diseases(
+    limit: int = Query(50, ge=1, le=100),
+    offset: int = Query(0, ge=0),
+    db: Session = Depends(get_db),
+):
     """Danh sách toàn bộ bệnh — Public, không cần đăng nhập."""
-    return disease_info_service.list_diseases(db)
+    return disease_info_service.list_diseases(db, limit=limit, offset=offset)
 
 
 @router.get("/{label_key}", response_model=DiseaseInfoResponse)

@@ -9,6 +9,8 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 class FarmCreate(BaseModel):
     """Dữ liệu đầu vào khi tạo farm mới."""
 
+    model_config = ConfigDict(extra="forbid")
+
     name: str = Field(min_length=1, max_length=100)
     location_text: Optional[str] = Field(default=None, max_length=255)
 
@@ -24,6 +26,8 @@ class FarmCreate(BaseModel):
 class FarmUpdate(BaseModel):
     """Dữ liệu đầu vào khi cập nhật farm."""
 
+    model_config = ConfigDict(extra="forbid")
+
     name: Optional[str] = Field(default=None, min_length=1, max_length=100)
     location_text: Optional[str] = Field(default=None, max_length=255)
 
@@ -31,7 +35,7 @@ class FarmUpdate(BaseModel):
     @classmethod
     def validate_name(cls, value: str | None) -> str | None:
         if value is None:
-            return value
+            raise ValueError("Tên farm không được là null")
         value = value.strip()
         if not value:
             raise ValueError("Tên farm không được để trống")

@@ -1,37 +1,54 @@
-import { useState } from 'react'
-import UploadImage from './components/UploadImage.jsx'
-import ResultCard from './components/ResultCard.jsx'
-import { predictImage } from './api/predict.js'
+import { Navigate, Route, Routes } from 'react-router-dom'
+import ProtectedRoute from './components/auth/ProtectedRoute.jsx'
+import RoleGuard from './components/auth/RoleGuard.jsx'
+import AdminLayout from './layouts/AdminLayout.jsx'
+import AppLayout from './layouts/AppLayout.jsx'
+import FarmsPage from './pages/app/FarmsPage.jsx'
+import DashboardPage from './pages/app/DashboardPage.jsx'
+import DiseaseLibraryPage from './pages/app/DiseaseLibraryPage.jsx'
+import HistoryPage from './pages/app/HistoryPage.jsx'
+import ScanPage from './pages/app/ScanPage.jsx'
+import AdminDashboardPage from './pages/admin/AdminDashboardPage.jsx'
+import DiseaseManagementPage from './pages/admin/DiseaseManagementPage.jsx'
+import PlaceholderPage from './pages/admin/PlaceholderPage.jsx'
+import UsersPage from './pages/admin/UsersPage.jsx'
+import LoginPage from './pages/auth/LoginPage.jsx'
+import RegisterPage from './pages/auth/RegisterPage.jsx'
+import NotFoundPage from './pages/NotFoundPage.jsx'
+import LandingPage from './pages/public/LandingPage.jsx'
 
 export default function App() {
-  const [previewUrl, setPreviewUrl] = useState(null)
-  const [result, setResult] = useState(null)
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState(null)
-
-  async function handleFileSelect(file) {
-    setPreviewUrl(URL.createObjectURL(file))
-    setResult(null)
-    setError(null)
-    setLoading(true)
-
-    try {
-      const data = await predictImage(file)
-      setResult(data)
-    } catch (err) {
-      setError(err.response?.data?.detail || 'Không thể kết nối tới server, thử lại sau.')
-    } finally {
-      setLoading(false)
-    }
-  }
-
   return (
-    <div style={{ maxWidth: 480, margin: '40px auto', fontFamily: 'sans-serif', padding: '0 16px' }}>
-      <h1 style={{ fontSize: 22 }}>🌿 Nhận diện bệnh lá cây</h1>
-      <p style={{ color: '#666' }}>Upload ảnh lá cây để nhận diện bệnh và độ tin cậy của mô hình.</p>
+    <Routes>
+      <Route path="/" element={<LandingPage />} />
+      <Route path="/login" element={<LoginPage />} />
+      <Route path="/register" element={<RegisterPage />} />
 
-      <UploadImage onFileSelect={handleFileSelect} previewUrl={previewUrl} />
-      <ResultCard result={result} loading={loading} error={error} />
-    </div>
+      <Route element={<ProtectedRoute />}>
+        <Route element={<RoleGuard allowedRoles={['user', 'technician', 'manager']} />}>
+          <Route path="/app" element={<AppLayout />}>
+            <Route index element={<Navigate to="dashboard" replace />} />
+            <Route path="dashboard" element={<DashboardPage />} />
+            <Route path="scan" element={<ScanPage />} />
+            <Route path="history" element={<HistoryPage />} />
+            <Route path="farms" element={<FarmsPage />} />
+            <Route path="diseases" element={<DiseaseLibraryPage />} />
+          </Route>
+        </Route>
+
+        <Route element={<RoleGuard allowedRoles={['admin']} />}>
+          <Route path="/admin" element={<AdminLayout />}>
+            <Route index element={<AdminDashboardPage />} />
+            <Route path="users" element={<UsersPage />} />
+            <Route path="farms" element={<FarmsPage adminMode />} />
+            <Route path="diseases" element={<DiseaseManagementPage />} />
+            <Route path="models" element={<PlaceholderPage title="Quản lý phiên bản mô hình" description="Khung quản lý model_versions, accuracy và model đang chạy production." />} />
+            <Route path="system" element={<PlaceholderPage title="Theo dõi hệ thống" description="Khung thống kê lượt quét, tỷ lệ bệnh và người dùng hoạt động." />} />
+          </Route>
+        </Route>
+      </Route>
+
+      <Route path="*" element={<NotFoundPage />} />
+    </Routes>
   )
 }

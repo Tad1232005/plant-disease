@@ -1,0 +1,46 @@
+# .clinerules — Bối cảnh project cho AI agent (Cline tự đọc file này mỗi task)
+
+## 1. Tổng quan
+- **Đồ án môn Quản lý phần mềm** (nhóm 3 người): Hệ thống nhận diện bệnh lá cây từ ảnh + confidence score.
+- **4 module độc lập** trong cùng repo:
+  | Thư mục | Vai trò | Stack | Cách chạy |
+  |---|---|---|---|
+  | `ml/` | Train/evaluate model | Python, PyTorch | `python src/train.py` (venv tại `ml/venv`) |
+  | `backend/` | REST API serve model | FastAPI, SQLAlchemy 2, Alembic, SQLite, JWT | `uvicorn app.main:app --reload` → :8000 |
+  | `frontend/` | Web người dùng | React 18, Vite 5, Tailwind, react-router v6, react-hook-form, zod, axios | `npm run dev` → :5173 |
+  | `admin/` | Web quản trị (app riêng) | React 18, Vite 8, Tailwind, react-router v7 | `npm run dev` |
+
+## 2. Backend (`backend/`)
+- Entry: `app/main.py` — FastAPI, gắn router tại prefix **`/api/v1`**; Swagger UI tại `/docs`.
+- Router v1 hiện có: `auth` (đăng nhập/đăng ký JWT), `predict` (upload ảnh → label + confidence, lưu Scan + ScanTopK).
+- Cấu trúc chuẩn layered: `api/v1/` → `services/` → `crud/` → `models/`; schemas trong `schemas/`; config trong `core/config.py` (pydantic-settings, đọc `.env` — mẫu ở `.env.example`).
+- DB models: `User`, `Farm`, `DiseaseInfo`, `Scan`, `ScanTopK`, `ModelVersion`. Migrations bằng Alembic (`alembic/versions/`).
+- Model assets: `app/models/best_model.pt` + `classes.json` (copy từ `ml/models/`). ⚠️ `config.py` đang trỏ `MODEL_PATH` sang `app/ml_assets/` — khi đụng đến đường dẫn model phải kiểm tra kỹ chỗ này.
+- Tests: pytest trong `backend/tests/` (`test_auth.py`, `test_predict.py`).
+- ⚠️ `backend/requirements.txt` lưu UTF-16 — cẩn thận khi đọc/ghi. Còn có `pyproject.toml`.
+- ⚠️ Tồn tại cả `app/routes/predict.py` và `app/schemas.py` (di tích cũ) — router thật là `app/api/v1/`, schemas thật là package `app/schemas/`.
+
+## 3. ML (`ml/`)
+- Pipeline file-based: `download_dataset.py` → `data/filtered/` (38 class PlantVillage ~54k ảnh) → `split_dataset.py` → `data/split/` (70/15/15, seed 42, chia theo leaf_id) → `train.py` → `models/` → `evaluate.py` → `outputs/figures/`.
+- Nâng cao: `gradcam.py` (XAI), `calibration.py` (temperature scaling), `ood_scoring.py` + `ood_ensemble.py` + `evaluate_ood.py` (phát hiện ảnh ngoài phân bố, ngưỡng confidence 0.5), `compare_models.py`.
+- Config tập trung: `ml/configs/config.yaml` (model_type: mobilenet_v2 / resnet50 / efficientnet_b0; image 224; epochs 15; batch 32; lr 1e-4). Đã train nhiều biến thể (suffix `_f`, `_y`).
+- `ml/data/`, `ml/models/` lớn — đã gitignore, không commit.
+
+## 4. Frontend (`frontend/`) & Admin (`admin/`)
+- `frontend/` routes: public `/`, `/login`, `/register`; user+technician+manager: `/app/{dashboard,scan,history,farms,diseases}`; admin: `/admin/{users,farms,diseases,models,system}` (models & system đang là PlaceholderPage).
+- `admin/` (app tách riêng): `/login`; `/admin/{dashboard,users,farms,diseases,proposals,models,system}` — đầy đủ hơn frontend (có DiseaseProposalsPage, ModelVersionsPage, SystemStatsPage).
+- Phân quyền: roles `user | technician | manager | admin` (`utils/roles.js`), guard qua `ProtectedRoute`/`RoleGuard`/`AdminRoute`, JWT lưu qua `utils/storage.js`, AuthContext.
+- API client: axios trong `frontend/src/api/client.js` và `admin/src/services/client.js`. CORS backend cho phép `localhost:5173`.
+- UI: TailwindCSS; components tái sử dụng trong `components/common/` (DataTable, Modal, CrudForm, StatCard, StatusBadge, ConfirmDialog...).
+
+## 5. Git workflow (BẮT BUỘC theo README.md)
+- Tên nhánh = tên cá nhân viết liền không dấu (vd: `tad`). Nhánh hiện tại: `tad`.
+- **Không bao giờ push trực tiếp lên `main`**: checkout main → pull → branch cá nhân → commit (`feat: ...`) → push → tạo PR cho Leader review.
+- Commit message: tiếng Việt không dấu, dạng conventional (`feat:`, `fix:`...).
+
+## 6. Quy tắc làm việc với agent
+- Trước khi viết code: đọc các file liên quan, lập kế hoạch từng bước và xác nhận với user trước khi thực thi.
+- Giữ đúng convention hiện có: Python dùng docstring tiếng Việt, React dùng JSX + hook, đặt tên theo pattern đã có trong từng module.
+- Không commit file dữ liệu/model lớn (`ml/data/`, `ml/models/`, `node_modules/`, `venv/`).
+- Sau khi sửa code: tự review (biến chưa khai báo, thiếu async/await, code rác như console.log/comment thừa) và chạy test/link check khi khả thi.
+- Backend tests: chạy bằng pytest trong `backend/` (mô hình và deps có thể cần venv riêng).
