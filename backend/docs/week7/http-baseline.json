@@ -1,0 +1,62 @@
+{
+  "scope": "loopback_read_only_http_no_inference",
+  "base_url": "http://127.0.0.1:58017",
+  "api_server_pid": 18456,
+  "client_os": "Windows-10-10.0.19045-SP0",
+  "client_machine": "AMD64",
+  "logical_cpu_count": 8,
+  "python": "3.12.0",
+  "requests": 200,
+  "concurrency": 4,
+  "timeout_seconds": 5.0,
+  "warmup_requests_excluded": 4,
+  "elapsed_seconds": 1.7355654999846593,
+  "requests_per_second": 115.2362155169412,
+  "results": {
+    "200": 200
+  },
+  "routes": {
+    "/health/live": {
+      "attempts": 50,
+      "results": {
+        "200": 50
+      },
+      "p50_ms": 6.348600029014051,
+      "p95_ms": 11.6719999932684
+    },
+    "/health/ready": {
+      "attempts": 50,
+      "results": {
+        "200": 50
+      },
+      "p50_ms": 96.61740000592545,
+      "p95_ms": 200.95269999001175
+    },
+    "/api/v1/disease-info?limit=10": {
+      "attempts": 50,
+      "results": {
+        "200": 50
+      },
+      "p50_ms": 12.514200003352016,
+      "p95_ms": 16.48270001169294
+    },
+    "/api/v1/predict/capabilities": {
+      "attempts": 50,
+      "results": {
+        "200": 50
+      },
+      "p50_ms": 7.948800048325211,
+      "p95_ms": 13.119899958837777
+    }
+  },
+  "memory": {
+    "method": "sampled_server_working_set_or_rss",
+    "samples": 3,
+    "sampled_peak_bytes": 268914688
+  },
+  "limitations": [
+    "Not a Predict/ML benchmark or production capacity estimate",
+    "Client and server share a machine; warmup excluded; samples are not exact peak RAM",
+    "No frontend/browser, reverse proxy or TLS evaluated"
+  ]
+}

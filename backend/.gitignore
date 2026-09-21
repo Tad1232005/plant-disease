@@ -27,5 +27,3 @@ storage/gradcam/*
 # Model weights lớn không đưa vào Git; metadata JSON vẫn được version-control.
 app/ml_assets/models/*/model.pt
 
-# Keep the backend review deliverables; local image manifests/reports stay private.
-docs/

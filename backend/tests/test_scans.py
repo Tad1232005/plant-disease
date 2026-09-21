@@ -1,6 +1,7 @@
 """Kiểm thử Scan API theo ownership Tuần 4."""
 
 from app.core.config import settings
+from app.services import scan_service
 import json
 
 from app.models import DiseaseInfo, ModelVersion, Scan, ScanModelResult, ScanTopK
@@ -185,6 +186,60 @@ def test_owner_can_delete_scan_and_topk_cascades(
     assert client.get(
         f"/api/v1/scans/{scan_id}", headers=user_headers
     ).status_code == 404
+
+
+def test_owner_can_create_and_read_private_gradcam(
+    client,
+    db_session,
+    normal_user,
+    user_headers,
+    tmp_path,
+    monkeypatch,
+):
+    """Grad-CAM is derived once, stays private, and is removed with the Scan."""
+    scan = create_scan(db_session, normal_user.id, "gradcam")
+    model = scan.primary_model_version
+    assert model is not None
+    model.classes_path = "models/classes.json"
+    model.sha256 = "d" * 64
+    db_session.commit()
+    monkeypatch.setattr(settings, "UPLOAD_DIR", str(tmp_path))
+    (tmp_path / "gradcam.jpg").write_bytes(b"source-image")
+    monkeypatch.setattr(
+        scan_service.predict_service,
+        "generate_gradcam",
+        lambda _bytes, _spec, _label: b"fake-gradcam-png",
+    )
+
+    response = client.post(f"/api/v1/scans/{scan.id}/gradcam", headers=user_headers)
+
+    assert response.status_code == 200
+    assert response.json()["scan_id"] == scan.id
+    assert "không xác nhận chẩn đoán" in response.json()["notice"]
+    gradcam_file = tmp_path / "gradcam" / response.json()["gradcam_path"].split("/")[-1]
+    assert gradcam_file.read_bytes() == b"fake-gradcam-png"
+    assert client.get(f"/api/v1/scans/{scan.id}/gradcam", headers=user_headers).status_code == 200
+    assert client.get(f"/api/v1/scans/{scan.id}/gradcam").status_code == 401
+
+    assert client.delete(f"/api/v1/scans/{scan.id}", headers=user_headers).status_code == 204
+    assert not gradcam_file.exists()
+
+
+def test_gradcam_rejects_non_accepted_or_foreign_scan(
+    client,
+    db_session,
+    normal_user,
+    technician_user,
+    user_headers,
+    technician_headers,
+):
+    scan = create_scan(db_session, normal_user.id, "gradcam-rejected")
+    scan.validation_status = "ambiguous"
+    scan.predicted_label = None
+    db_session.commit()
+
+    assert client.post(f"/api/v1/scans/{scan.id}/gradcam", headers=user_headers).status_code == 409
+    assert client.post(f"/api/v1/scans/{scan.id}/gradcam", headers=technician_headers).status_code == 403
 
 
 def test_invalid_scan_detail_does_not_return_treatment(

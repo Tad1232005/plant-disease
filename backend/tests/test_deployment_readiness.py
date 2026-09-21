@@ -100,6 +100,9 @@ def test_preflight_detects_unreachable_db_and_missing_uploads(tmp_path):
 
 def test_preflight_revision_and_structure_on_postgres(db_session):
     checked = config(DATABASE_URL=TEST_DATABASE_URL.render_as_string(hide_password=False))
+    # The suite can reuse a PostgreSQL database while other fixtures have created
+    # accounts.  Preflight is read-only; it must preserve that existing data.
+    user_count_before = db_session.query(User).count()
     results = {item["name"]: item for item in database_checks(checked)}
     assert results["schema_revision"]["status"] == "fail"
     assert results["schema_structure"]["status"] == "pass"
@@ -109,7 +112,7 @@ def test_preflight_revision_and_structure_on_postgres(db_session):
     try:
         results = {item["name"]: item for item in database_checks(checked)}
         assert results["schema_revision"]["status"] == "pass"
-        assert db_session.query(User).count() == 0
+        assert db_session.query(User).count() == user_count_before
         db_session.execute(text("ALTER TABLE disease_info DROP COLUMN content_version"))
         db_session.commit()
         results = {item["name"]: item for item in database_checks(checked)}

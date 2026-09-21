@@ -53,6 +53,14 @@ class ScanModelResultItem(BaseModel):
     top_k: list[ScanTopKItem] = Field(default_factory=list)
 
 
+class GradcamResponse(BaseModel):
+    """Private Grad-CAM artifact for an accepted Scan."""
+
+    scan_id: int
+    gradcam_path: str
+    notice: str = "Grad-CAM chỉ minh họa vùng model chú ý, không xác nhận chẩn đoán hoặc ảnh là lá."
+
+
 class ScanDetailResponse(BaseModel):
     """Chi tiết một scan, thông tin bệnh và top-3 dự đoán."""
 

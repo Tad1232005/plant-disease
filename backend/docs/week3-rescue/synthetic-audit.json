@@ -1,0 +1,160 @@
+{
+  "policy_version": "ensemble-rgb224-v2",
+  "synthetic_only": true,
+  "leaf_detector": "not_performed",
+  "device": "cpu",
+  "torch_version": "2.13.0+cpu",
+  "thresholds": {
+    "confidence": 0.3,
+    "margin": 0.05,
+    "js": 0.3
+  },
+  "preprocessing": "RGB; resize 224x224 bilinear antialias; ImageNet normalize; no crop",
+  "artifacts": [
+    {
+      "model_type": "efficientnet_b0",
+      "version": "efficientnet-b0-f-v1",
+      "sha256": "5e100fdcc9dce49373594ab161539c4070666b09a345a8ef0daca9733e056d21",
+      "temperature": 1.4939864873886108
+    },
+    {
+      "model_type": "mobilenet_v2",
+      "version": "mobilenet-v2-f-v1",
+      "sha256": "d9c03248f89f87d06148984ecf191358867601f766d0646f760b47fef6169bf8",
+      "temperature": 1.0
+    },
+    {
+      "model_type": "resnet50",
+      "version": "resnet50-f-v1",
+      "sha256": "00170cc2751ea656670aff680cdd2ae3ac0f3c1be8b194d596252a946fe2103f",
+      "temperature": 1.4951273202896118
+    }
+  ],
+  "summary": {
+    "basic": {
+      "runs": 3,
+      "negative_count": 3,
+      "false_accept_rate": 0.3333333333333333,
+      "in_scope_count": 0,
+      "in_scope_rejection_rate": null,
+      "accuracy_among_accepted": null
+    },
+    "standard": {
+      "runs": 3,
+      "negative_count": 3,
+      "false_accept_rate": 0.3333333333333333,
+      "in_scope_count": 0,
+      "in_scope_rejection_rate": null,
+      "accuracy_among_accepted": null
+    },
+    "advanced": {
+      "runs": 3,
+      "negative_count": 3,
+      "false_accept_rate": 0.3333333333333333,
+      "in_scope_count": 0,
+      "in_scope_rejection_rate": null,
+      "accuracy_among_accepted": null
+    }
+  },
+  "rows": [
+    {
+      "sample": "white",
+      "group": "non_leaf",
+      "expected_label": null,
+      "mode": "basic",
+      "status": "accepted",
+      "label": "Corn_(maize)___healthy",
+      "confidence": 0.444315,
+      "reason": null,
+      "models_succeeded": 1
+    },
+    {
+      "sample": "white",
+      "group": "non_leaf",
+      "expected_label": null,
+      "mode": "standard",
+      "status": "accepted",
+      "label": "Corn_(maize)___healthy",
+      "confidence": 0.551507,
+      "reason": null,
+      "models_succeeded": 2
+    },
+    {
+      "sample": "white",
+      "group": "non_leaf",
+      "expected_label": null,
+      "mode": "advanced",
+      "status": "accepted",
+      "label": "Corn_(maize)___healthy",
+      "confidence": 0.379193,
+      "reason": null,
+      "models_succeeded": 3
+    },
+    {
+      "sample": "black",
+      "group": "non_leaf",
+      "expected_label": null,
+      "mode": "basic",
+      "status": "low_confidence",
+      "label": null,
+      "confidence": 0.043365,
+      "reason": "confidence_below_threshold",
+      "models_succeeded": 1
+    },
+    {
+      "sample": "black",
+      "group": "non_leaf",
+      "expected_label": null,
+      "mode": "standard",
+      "status": "ambiguous",
+      "label": null,
+      "confidence": 0.396752,
+      "reason": "model_disagreement_too_high",
+      "models_succeeded": 2
+    },
+    {
+      "sample": "black",
+      "group": "non_leaf",
+      "expected_label": null,
+      "mode": "advanced",
+      "status": "low_confidence",
+      "label": null,
+      "confidence": 0.275091,
+      "reason": "confidence_below_threshold",
+      "models_succeeded": 3
+    },
+    {
+      "sample": "green",
+      "group": "non_leaf",
+      "expected_label": null,
+      "mode": "basic",
+      "status": "low_confidence",
+      "label": null,
+      "confidence": 0.059373,
+      "reason": "confidence_below_threshold",
+      "models_succeeded": 1
+    },
+    {
+      "sample": "green",
+      "group": "non_leaf",
+      "expected_label": null,
+      "mode": "standard",
+      "status": "ambiguous",
+      "label": null,
+      "confidence": 0.52696,
+      "reason": "model_disagreement_too_high",
+      "models_succeeded": 2
+    },
+    {
+      "sample": "green",
+      "group": "non_leaf",
+      "expected_label": null,
+      "mode": "advanced",
+      "status": "ambiguous",
+      "label": null,
+      "confidence": 0.362689,
+      "reason": "model_disagreement_too_high",
+      "models_succeeded": 3
+    }
+  ]
+}

@@ -10,10 +10,11 @@ import math
 from pathlib import Path
 from threading import BoundedSemaphore, Lock
 import time
-from typing import Any, Literal, Sequence
+from typing import Any, Literal, Sequence, cast
 import logging
 from collections import OrderedDict
 
+import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -160,6 +161,9 @@ class PredictService:
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self._cache: OrderedDict[ActiveModelSpec, LoadedModel] = OrderedDict()
         self._load_lock = Lock()
+        # Backpropagation for Grad-CAM mutates gradients on a shared cached model.
+        # It must never overlap another Grad-CAM or ordinary inference on that model.
+        self._explain_lock = Lock()
         self._capacity = BoundedSemaphore(settings.MAX_CONCURRENT_INFERENCES)
         # Dùng chung executor giữa các request để không tạo 2-3 thread mới
         # cho mỗi lần gọi Standard/Advanced.
@@ -456,6 +460,99 @@ class PredictService:
             raise InferenceCapacityError("Hệ thống đang xử lý một lượt chẩn đoán khác")
         try:
             return self.predict(image_bytes, model_specs, mode)
+        finally:
+            self._capacity.release()
+
+    @staticmethod
+    def _gradcam_target_layer(model: nn.Module, model_type: str) -> nn.Module:
+        """Return the final convolutional block for a supported backbone."""
+        if model_type in {"efficientnet_b0", "mobilenet_v2"}:
+            return cast(nn.Sequential, getattr(model, "features"))[-1]
+        if model_type == "resnet50":
+            return cast(nn.Sequential, getattr(model, "layer4"))[-1]
+        raise ModelConfigurationError(f"Grad-CAM không hỗ trợ model_type: {model_type}")
+
+    def generate_gradcam(
+        self,
+        image_bytes: bytes,
+        spec: ActiveModelSpec,
+        target_label: str,
+    ) -> bytes:
+        """Render a PNG Grad-CAM overlay for one persisted model prediction.
+
+        This uses the exact cached model bundle and preprocessing policy used by
+        inference.  The returned visualization is explanatory only; callers must
+        not treat it as evidence that a prediction is correct.
+        """
+        if not self._capacity.acquire(blocking=False):
+            raise InferenceCapacityError("Hệ thống đang xử lý một lượt chẩn đoán khác")
+        try:
+            with self._explain_lock:
+                loaded = self._load(spec)
+                try:
+                    target_index = loaded.classes.index(target_label)
+                except ValueError as exc:
+                    raise ModelConfigurationError(
+                        "Nhãn của Scan không thuộc classes của model đã lưu"
+                    ) from exc
+
+                image = Image.open(io.BytesIO(image_bytes)).convert("RGB")
+                tensor = self.transform(image).unsqueeze(0).to(self.device)
+                activations: torch.Tensor | None = None
+                gradients: torch.Tensor | None = None
+
+                def forward_hook(_module: nn.Module, _inputs: Any, output: torch.Tensor) -> None:
+                    nonlocal activations
+                    activations = output
+
+                def backward_hook(
+                    _module: nn.Module,
+                    _grad_inputs: Any,
+                    grad_outputs: tuple[torch.Tensor, ...],
+                ) -> None:
+                    nonlocal gradients
+                    gradients = grad_outputs[0]
+
+                model = loaded.model
+                target_layer = self._gradcam_target_layer(model, spec.model_type)
+                forward_handle = target_layer.register_forward_hook(forward_hook)
+                backward_handle = target_layer.register_full_backward_hook(backward_hook)
+                try:
+                    model.zero_grad(set_to_none=True)
+                    logits = model(tensor)
+                    if logits.shape != (1, len(loaded.classes)) or not torch.isfinite(logits).all():
+                        raise ModelConfigurationError("Logits không hợp lệ khi tạo Grad-CAM")
+                    logits[0, target_index].backward()
+                    if activations is None or gradients is None:
+                        raise ModelConfigurationError("Không lấy được activation/gradient cho Grad-CAM")
+                    weights = gradients.mean(dim=(2, 3), keepdim=True)
+                    heatmap = torch.relu((weights * activations).sum(dim=1, keepdim=True))
+                    heatmap = F.interpolate(
+                        heatmap,
+                        size=(image.height, image.width),
+                        mode="bilinear",
+                        align_corners=False,
+                    )[0, 0]
+                    heatmap = heatmap - heatmap.min()
+                    maximum = heatmap.max()
+                    if not torch.isfinite(maximum) or float(maximum.detach()) <= 0:
+                        raise ModelConfigurationError("Grad-CAM không có vùng kích hoạt hợp lệ")
+                    normalized = (heatmap / maximum).detach().cpu().numpy()
+                finally:
+                    forward_handle.remove()
+                    backward_handle.remove()
+                    model.zero_grad(set_to_none=True)
+
+                # A compact jet-like palette avoids an OpenCV runtime dependency.
+                red = np.clip(1.5 - np.abs(4 * normalized - 3), 0, 1)
+                green = np.clip(1.5 - np.abs(4 * normalized - 2), 0, 1)
+                blue = np.clip(1.5 - np.abs(4 * normalized - 1), 0, 1)
+                colors = np.stack((red, green, blue), axis=-1) * 255.0
+                source = np.asarray(image, dtype=np.float32)
+                overlay = np.clip(source * 0.60 + colors * 0.40, 0, 255).astype(np.uint8)
+                output = io.BytesIO()
+                Image.fromarray(overlay, mode="RGB").save(output, format="PNG", optimize=True)
+                return output.getvalue()
         finally:
             self._capacity.release()
 
