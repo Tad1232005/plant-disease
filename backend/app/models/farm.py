@@ -3,12 +3,13 @@
 from datetime import datetime
 from typing import TYPE_CHECKING, List, Optional
 
-from sqlalchemy import DateTime, ForeignKey, Integer, String, func
+from sqlalchemy import DateTime, ForeignKey, Index, Integer, String, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
 
 if TYPE_CHECKING:
+    from app.models.farm_member import FarmMember
     from app.models.user import User
     from app.models.scan import Scan
 
@@ -20,10 +21,10 @@ class Farm(Base):
         Integer,
         primary_key=True,
         autoincrement=True,
-        index=True,
     )
 
-    user_id: Mapped[int] = mapped_column(
+    owner_id: Mapped[int] = mapped_column(
+        "user_id",
         Integer,
         ForeignKey("users.id", ondelete="CASCADE"),
         nullable=False,
@@ -54,4 +55,17 @@ class Farm(Base):
     scans: Mapped[List["Scan"]] = relationship(
         "Scan",
         back_populates="farm",
+    )
+
+    archived_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime,
+        nullable=True,
+    )
+
+    __table_args__ = (Index("idx_farms_archived_at", "archived_at"),)
+
+    members: Mapped[List["FarmMember"]] = relationship(
+        "FarmMember",
+        back_populates="farm",
+        cascade="all, delete-orphan",
     )

@@ -1,19 +1,97 @@
-"""Schema cho request/response của API predict."""
+"""Schema cho inference nhiều model và capability theo role."""
 
-from typing import List
+from typing import Literal, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
+
+
+class InputAssessment(BaseModel):
+    """Technical input checks are not botanical identification."""
+
+    leaf_detection_status: Literal["not_performed"] = "not_performed"
+    quality_status: Literal["not_assessed"] = "not_assessed"
+    scope: str = "Ảnh cận cảnh một lá, đủ sáng và rõ nét; chỉ hỗ trợ các nhãn đã học."
+    limitations: str = "Policy đạt không xác nhận ảnh là lá hoặc chẩn đoán chắc chắn đúng."
+
+InferenceMode = Literal["basic", "standard", "advanced"]
+RequestedMode = Literal["auto", "basic", "standard", "advanced"]
+InferenceStrategy = Literal["ensemble", "single"]
+ModelType = Literal["efficientnet_b0", "mobilenet_v2", "resnet50"]
+ValidationStatus = Literal["accepted", "low_confidence", "ambiguous", "model_error"]
+AgreementStatus = Literal["single_model", "agreed", "disagreed", "degraded"]
 
 
 class TopKResult(BaseModel):
-    label: str = Field(..., description="Tên nhãn bệnh")
-    confidence: float = Field(..., description="Độ tin cậy (0.0 đến 1.0)")
-    rank: int = Field(..., description="Thứ tự xếp hạng (1, 2, 3)")
+    label: str = Field(..., description="Nhãn trong bộ 38 classes")
+    confidence: float = Field(..., ge=0, le=1)
+    rank: int = Field(..., ge=1, le=3)
+
+
+class ModelPredictionResponse(BaseModel):
+    model_config = ConfigDict(allow_inf_nan=False)
+    model_version_id: int
+    version_name: str
+    model_type: Literal["mobilenet_v2", "efficientnet_b0", "resnet50"]
+    execution_order: int = Field(..., ge=1, le=3)
+    predicted_label: Optional[str] = None
+    confidence: Optional[float] = Field(default=None, ge=0, le=1)
+    top1_top2_margin: Optional[float] = Field(default=None, ge=0, le=1)
+    entropy: Optional[float] = Field(default=None, ge=0, le=1)
+    energy_score: Optional[float] = None
+    accepted: bool
+    latency_ms: Optional[float] = Field(default=None, ge=0)
+    error_code: Optional[str] = None
+    top_k: list[TopKResult] = Field(default_factory=list)
+
+
+FarmAssignmentStatus = Literal[
+    "not_applicable", "not_requested", "assigned", "not_allowed"
+]
 
 
 class PredictResponse(BaseModel):
-    label: str = Field(..., description="Tên bệnh có độ tin cậy cao nhất")
-    confidence: float = Field(..., description="Độ tin cậy của nhãn cao nhất")
-    top_k: List[TopKResult] = Field(
-        ..., description="Top 3 kết quả khả thi nhất"
-    )
+    model_config = ConfigDict(allow_inf_nan=False)
+    # label=None nghĩa là policy từ chối chẩn đoán; top_k vẫn giữ để audit.
+    label: Optional[str] = None
+    confidence: float = Field(..., ge=0, le=1)
+    is_valid_leaf: bool = Field(description="Legacy: policy accepted, KHÔNG phải kết quả nhận diện lá.", deprecated=True)
+    input_assessment: InputAssessment = Field(default_factory=InputAssessment)
+    top_k: list[TopKResult]
+    model_version: str = Field(..., description="Primary version (legacy compatibility)")
+    inference_mode: InferenceMode
+    inference_strategy: InferenceStrategy = "ensemble"
+    selected_model_type: Optional[ModelType] = None
+    decision_details: dict = Field(default_factory=dict, description="Raw decision metrics, thresholds and every failed rule; not a leaf detector.")
+    validation_status: ValidationStatus
+    rejection_reason: Optional[str] = None
+    agreement_status: AgreementStatus
+    agreement_count: int = Field(..., ge=0, le=3)
+    models_requested: int = Field(..., ge=1, le=3)
+    models_succeeded: int = Field(..., ge=1, le=3)
+    top1_top2_margin: float = Field(..., ge=0, le=1)
+    ensemble_entropy: float = Field(..., ge=0, le=1)
+    js_divergence: float = Field(..., ge=0, le=1)
+    energy_score: float
+    ood_score: float = Field(..., ge=0, le=1, description="Heuristic bất định, không phải xác suất ảnh không phải lá.")
+    policy_version: str
+    model_results: list[ModelPredictionResponse]
+    scan_id: Optional[int] = None
+    farm_id: Optional[int] = None
+    farm_assignment_status: FarmAssignmentStatus
+    warning: Optional[str] = None
+    disease_name: Optional[str] = None
+    description: Optional[str] = None
+    treatment: Optional[str] = None
+    severity_level: Optional[Literal["low", "medium", "high"]] = None
+
+
+class PredictCapabilitiesResponse(BaseModel):
+    input_assessment: InputAssessment = Field(default_factory=InputAssessment)
+    role: Literal["guest", "user", "manager", "technician", "admin"]
+    default_mode: InferenceMode
+    allowed_modes: list[InferenceMode]
+    models_by_mode: dict[str, list[str]]
+    allowed_model_types: list[ModelType] = Field(default_factory=list)
+    supported_strategies: list[InferenceStrategy] = ["ensemble", "single"]
+    default_strategy: InferenceStrategy = "ensemble"
+    policy_version: str

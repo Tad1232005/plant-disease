@@ -1,8 +1,8 @@
-"""init_full_schema_v2
+"""initial migration
 
-Revision ID: 4c4a188067bc
+Revision ID: 261151a763e2
 Revises: 
-Create Date: 2026-08-14 23:07:18.427028
+Create Date: 2026-08-24 15:03:26.858460
 
 """
 from typing import Sequence, Union
@@ -12,7 +12,7 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision: str = '4c4a188067bc'
+revision: str = '261151a763e2'
 down_revision: Union[str, None] = None
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
@@ -24,6 +24,7 @@ def upgrade() -> None:
     sa.Column('id', sa.Integer(), autoincrement=True, nullable=False),
     sa.Column('version_name', sa.String(length=20), nullable=False),
     sa.Column('file_path', sa.String(length=255), nullable=False),
+    sa.Column('classes_path', sa.String(length=255), nullable=True),
     sa.Column('accuracy', sa.Float(), nullable=True),
     sa.Column('is_active', sa.Boolean(), nullable=False),
     sa.Column('created_at', sa.DateTime(), server_default=sa.text('(CURRENT_TIMESTAMP)'), nullable=False),
@@ -32,7 +33,7 @@ def upgrade() -> None:
     sa.UniqueConstraint('version_name')
     )
     with op.batch_alter_table('model_versions', schema=None) as batch_op:
-        batch_op.create_index('idx_single_active_model', ['is_active'], unique=True, postgresql_where=sa.text('is_active = true'), sqlite_where=sa.text('is_active = 1'))
+        batch_op.create_index('idx_single_active_model', ['is_active'], unique=True, postgresql_where=sa.text('is_active = true'))
 
     op.create_table('users',
     sa.Column('id', sa.Integer(), autoincrement=True, nullable=False),
@@ -41,14 +42,18 @@ def upgrade() -> None:
     sa.Column('password_hash', sa.String(length=255), nullable=False),
     sa.Column('role', sa.String(length=20), nullable=False),
     sa.Column('full_name', sa.String(length=100), nullable=True),
+    sa.Column('created_by', sa.Integer(), nullable=True),
+    sa.Column('token_version', sa.Integer(), server_default='0', nullable=False),
     sa.Column('created_at', sa.DateTime(), server_default=sa.text('(CURRENT_TIMESTAMP)'), nullable=False),
     sa.CheckConstraint("role IN ('user', 'technician', 'manager', 'admin')", name='ck_users_role'),
+    sa.ForeignKeyConstraint(['created_by'], ['users.id'], ondelete='SET NULL'),
     sa.PrimaryKeyConstraint('id')
     )
     with op.batch_alter_table('users', schema=None) as batch_op:
-        batch_op.create_index(batch_op.f('ix_users_email'), ['email'], unique=True)
-        batch_op.create_index(batch_op.f('ix_users_id'), ['id'], unique=False)
-        batch_op.create_index(batch_op.f('ix_users_username'), ['username'], unique=True)
+        batch_op.create_index('idx_users_created_by', ['created_by'], unique=False)
+        batch_op.create_index('idx_users_role', ['role'], unique=False)
+        batch_op.create_index('ix_users_email', ['email'], unique=True)
+        batch_op.create_index('ix_users_username', ['username'], unique=True)
 
     op.create_table('disease_info',
     sa.Column('id', sa.Integer(), autoincrement=True, nullable=False),
@@ -58,13 +63,13 @@ def upgrade() -> None:
     sa.Column('treatment', sa.Text(), nullable=True),
     sa.Column('severity_level', sa.String(length=20), nullable=False),
     sa.Column('updated_by', sa.Integer(), nullable=True),
+    sa.Column('created_at', sa.DateTime(), server_default=sa.text('(CURRENT_TIMESTAMP)'), nullable=False),
     sa.Column('updated_at', sa.DateTime(), server_default=sa.text('(CURRENT_TIMESTAMP)'), nullable=False),
     sa.CheckConstraint("severity_level IN ('low', 'medium', 'high')", name='ck_disease_info_severity_level'),
     sa.ForeignKeyConstraint(['updated_by'], ['users.id'], ondelete='SET NULL'),
     sa.PrimaryKeyConstraint('id')
     )
     with op.batch_alter_table('disease_info', schema=None) as batch_op:
-        batch_op.create_index(batch_op.f('ix_disease_info_id'), ['id'], unique=False)
         batch_op.create_index(batch_op.f('ix_disease_info_label_key'), ['label_key'], unique=True)
 
     op.create_table('farms',
@@ -77,7 +82,6 @@ def upgrade() -> None:
     sa.PrimaryKeyConstraint('id')
     )
     with op.batch_alter_table('farms', schema=None) as batch_op:
-        batch_op.create_index(batch_op.f('ix_farms_id'), ['id'], unique=False)
         batch_op.create_index(batch_op.f('ix_farms_user_id'), ['user_id'], unique=False)
 
     op.create_table('scans',
@@ -101,11 +105,6 @@ def upgrade() -> None:
         batch_op.create_index('idx_scans_farm_id', ['farm_id'], unique=False)
         batch_op.create_index('idx_scans_predicted_label', ['predicted_label'], unique=False)
         batch_op.create_index('idx_scans_user_id', ['user_id'], unique=False)
-        batch_op.create_index(batch_op.f('ix_scans_created_at'), ['created_at'], unique=False)
-        batch_op.create_index(batch_op.f('ix_scans_farm_id'), ['farm_id'], unique=False)
-        batch_op.create_index(batch_op.f('ix_scans_id'), ['id'], unique=False)
-        batch_op.create_index(batch_op.f('ix_scans_predicted_label'), ['predicted_label'], unique=False)
-        batch_op.create_index(batch_op.f('ix_scans_user_id'), ['user_id'], unique=False)
 
     op.create_table('scan_topk',
     sa.Column('id', sa.Integer(), autoincrement=True, nullable=False),
@@ -116,10 +115,10 @@ def upgrade() -> None:
     sa.CheckConstraint('confidence >= 0 AND confidence <= 1', name='ck_scan_topk_confidence'),
     sa.CheckConstraint('rank BETWEEN 1 AND 3', name='ck_scan_topk_rank'),
     sa.ForeignKeyConstraint(['scan_id'], ['scans.id'], ondelete='CASCADE'),
-    sa.PrimaryKeyConstraint('id')
+    sa.PrimaryKeyConstraint('id'),
+    sa.UniqueConstraint('scan_id', 'rank', name='uq_scan_topk_scan_rank')
     )
     with op.batch_alter_table('scan_topk', schema=None) as batch_op:
-        batch_op.create_index(batch_op.f('ix_scan_topk_id'), ['id'], unique=False)
         batch_op.create_index(batch_op.f('ix_scan_topk_scan_id'), ['scan_id'], unique=False)
 
     # ### end Alembic commands ###
@@ -129,15 +128,9 @@ def downgrade() -> None:
     # ### commands auto generated by Alembic - please adjust! ###
     with op.batch_alter_table('scan_topk', schema=None) as batch_op:
         batch_op.drop_index(batch_op.f('ix_scan_topk_scan_id'))
-        batch_op.drop_index(batch_op.f('ix_scan_topk_id'))
 
     op.drop_table('scan_topk')
     with op.batch_alter_table('scans', schema=None) as batch_op:
-        batch_op.drop_index(batch_op.f('ix_scans_user_id'))
-        batch_op.drop_index(batch_op.f('ix_scans_predicted_label'))
-        batch_op.drop_index(batch_op.f('ix_scans_id'))
-        batch_op.drop_index(batch_op.f('ix_scans_farm_id'))
-        batch_op.drop_index(batch_op.f('ix_scans_created_at'))
         batch_op.drop_index('idx_scans_user_id')
         batch_op.drop_index('idx_scans_predicted_label')
         batch_op.drop_index('idx_scans_farm_id')
@@ -146,22 +139,21 @@ def downgrade() -> None:
     op.drop_table('scans')
     with op.batch_alter_table('farms', schema=None) as batch_op:
         batch_op.drop_index(batch_op.f('ix_farms_user_id'))
-        batch_op.drop_index(batch_op.f('ix_farms_id'))
 
     op.drop_table('farms')
     with op.batch_alter_table('disease_info', schema=None) as batch_op:
         batch_op.drop_index(batch_op.f('ix_disease_info_label_key'))
-        batch_op.drop_index(batch_op.f('ix_disease_info_id'))
 
     op.drop_table('disease_info')
     with op.batch_alter_table('users', schema=None) as batch_op:
-        batch_op.drop_index(batch_op.f('ix_users_username'))
-        batch_op.drop_index(batch_op.f('ix_users_id'))
-        batch_op.drop_index(batch_op.f('ix_users_email'))
+        batch_op.drop_index('ix_users_username')
+        batch_op.drop_index('ix_users_email')
+        batch_op.drop_index('idx_users_role')
+        batch_op.drop_index('idx_users_created_by')
 
     op.drop_table('users')
     with op.batch_alter_table('model_versions', schema=None) as batch_op:
-        batch_op.drop_index('idx_single_active_model', postgresql_where=sa.text('is_active = true'), sqlite_where=sa.text('is_active = 1'))
+        batch_op.drop_index('idx_single_active_model', postgresql_where=sa.text('is_active = true'))
 
     op.drop_table('model_versions')
     # ### end Alembic commands ###

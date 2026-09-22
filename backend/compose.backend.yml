@@ -1,0 +1,36 @@
+# API only: connects to the PostgreSQL you already operate; creates no database service.
+# Docker Desktop defaults to the host database. Linux: configure CONTAINER_POSTGRES_HOST.
+name: plant-disease-backend
+services:
+  api:
+    build: .
+    env_file: .env
+    environment:
+      POSTGRES_HOST: ${CONTAINER_POSTGRES_HOST:-host.docker.internal}
+      UPLOAD_DIR: /app/storage/uploads
+      MODEL_ARTIFACT_ROOT: /app/app/ml_assets/models
+    ports:
+      - "127.0.0.1:${BACKEND_PORT:-8000}:8000"
+    volumes:
+      - api_uploads:/app/storage/uploads
+      - type: bind
+        source: ./app/ml_assets/models
+        target: /app/app/ml_assets/models
+        read_only: true
+        bind:
+          create_host_path: false
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m,mode=1777
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    init: true
+    restart: unless-stopped
+    stop_grace_period: 45s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+volumes:
+  api_uploads:

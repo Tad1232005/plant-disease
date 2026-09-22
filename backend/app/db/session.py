@@ -1,30 +1,24 @@
-"""Module cấu hình engine kết nối CSDL SQLite 
-    và khởi tạo Session cho ứng dụng."""
+"""Cấu hình SQLAlchemy engine PostgreSQL và tạo DB session."""
 
-from sqlalchemy import create_engine, event
-from sqlalchemy.orm import declarative_base, sessionmaker
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
 from app.core.config import settings
 
 engine = create_engine(
     settings.DATABASE_URL,
-    connect_args={"check_same_thread": False}
+    connect_args={"options": "-c timezone=UTC"},
+    pool_pre_ping=True,
+    pool_size=settings.DB_POOL_SIZE,
+    max_overflow=settings.DB_MAX_OVERFLOW,
+    pool_timeout=settings.DB_POOL_TIMEOUT_SECONDS,
 )
 
 
-@event.listens_for(engine, "connect")
-def set_sqlite_pragma(dbapi_connection, connection_record):
-    """Bật tính năng ràng buộc khóa ngoại (Foreign Keys) cho SQLite."""
-    cursor = dbapi_connection.cursor()
-    cursor.execute("PRAGMA foreign_keys=ON")
-    cursor.close()
-
-
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-Base = declarative_base()
 
 
 def get_db():
-    """Dependency khởi tạo DB Session cho từng request 
+    """Dependency khởi tạo DB Session cho từng request
         và tự động đóng kết nối khi xử lý xong"""
     db = SessionLocal()
     try:

@@ -1,11 +1,12 @@
 """Module chứa các hàm tiện ích băm mật khẩu và xử lý JWT token."""
 
 from datetime import datetime, timedelta, timezone
-from typing import Any, Dict, Optional, cast
+from typing import Any, Dict, Optional
+from uuid import uuid4
 
 from fastapi import HTTPException, status
-from jose import JWTError, jwt  # type: ignore[import-untyped]
-from passlib.context import CryptContext  # type: ignore[import-untyped]
+from jose import JWTError, jwt
+from passlib.context import CryptContext
 
 from app.core.config import settings
 
@@ -26,10 +27,13 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
 
 def create_access_token(
     subject: str | Any,
+    role: str | None = None,
     expires_delta: Optional[timedelta] = None,
+    token_version: int = 0,
 ) -> str:
-    """Tạo JWT access token cho người dùng."""
-    expire = datetime.now(timezone.utc) + (
+    """Tạo JWT access token kèm phiên bản để có thể thu hồi tức thời."""
+    issued_at = datetime.now(timezone.utc)
+    expire = issued_at + (
         expires_delta
         if expires_delta is not None
         else timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
@@ -38,7 +42,12 @@ def create_access_token(
         "sub": str(subject),
         "exp": expire,
         "type": "access",
+        "token_version": token_version,
+        "iat": issued_at,
+        "jti": uuid4().hex,
     }
+    if role is not None:
+        payload["role"] = role
     return str(
         jwt.encode(
             payload,
@@ -48,15 +57,19 @@ def create_access_token(
     )
 
 
-def create_refresh_token(subject: str | Any) -> str:
+def create_refresh_token(subject: str | Any, token_version: int) -> str:
     """Tạo JWT refresh token cho người dùng."""
-    expire = datetime.now(timezone.utc) + timedelta(
+    issued_at = datetime.now(timezone.utc)
+    expire = issued_at + timedelta(
         days=settings.REFRESH_TOKEN_EXPIRE_DAYS,
     )
     payload: Dict[str, Any] = {
         "sub": str(subject),
         "exp": expire,
         "type": "refresh",
+        "token_version": token_version,
+        "iat": issued_at,
+        "jti": uuid4().hex,
     }
     return str(
         jwt.encode(
@@ -75,7 +88,7 @@ def decode_token(token: str) -> Dict[str, Any]:
             settings.SECRET_KEY,
             algorithms=[settings.ALGORITHM],
         )
-        return cast(Dict[str, Any], payload)
+        return payload
     except JWTError as exc:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,

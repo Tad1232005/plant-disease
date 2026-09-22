@@ -1,0 +1,68 @@
+"""API endpoint quản lý Farm."""
+
+from fastapi import APIRouter, Depends, Query, status
+from sqlalchemy.orm import Session
+
+from app.db.session import get_db
+from app.schemas.farm import FarmCreate, FarmUpdate, FarmResponse
+from app.services import farm_service
+from app.api.deps import require_role
+from app.models.user import User
+
+router = APIRouter(prefix="/farms", tags=["Farms"])
+
+
+@router.post(
+    "",
+    response_model=FarmResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+def create_farm(
+    farm_in: FarmCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role("manager")),
+):
+    """Manager tạo farm mới thuộc quyền sở hữu của chính mình."""
+    return farm_service.create_farm(db, current_user, farm_in)
+
+
+@router.get("", response_model=list[FarmResponse])
+def list_farms(
+    limit: int = Query(50, ge=1, le=100),
+    offset: int = Query(0, ge=0),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role("manager")),
+):
+    """Manager lấy danh sách farm do chính mình sở hữu."""
+    return farm_service.list_farms(db, current_user, limit=limit, offset=offset)
+
+
+@router.get("/{farm_id}", response_model=FarmResponse)
+def get_farm(
+    farm_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role("manager")),
+):
+    """Manager lấy chi tiết farm do chính mình sở hữu."""
+    return farm_service.get_farm(db, current_user, farm_id)
+
+
+@router.put("/{farm_id}", response_model=FarmResponse)
+def update_farm(
+    farm_id: int,
+    farm_in: FarmUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role("manager")),
+):
+    """Manager cập nhật farm do chính mình sở hữu."""
+    return farm_service.update_farm(db, current_user, farm_id, farm_in)
+
+
+@router.delete("/{farm_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_farm(
+    farm_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role("manager")),
+):
+    """Manager xóa farm do chính mình sở hữu."""
+    farm_service.delete_farm(db, current_user, farm_id)

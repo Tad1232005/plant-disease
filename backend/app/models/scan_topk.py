@@ -2,7 +2,14 @@
 
 from typing import TYPE_CHECKING
 
-from sqlalchemy import CheckConstraint, Float, ForeignKey, Integer, String
+from sqlalchemy import (
+    CheckConstraint,
+    Float,
+    ForeignKey,
+    Integer,
+    String,
+    UniqueConstraint,
+)
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
@@ -18,7 +25,6 @@ class ScanTopK(Base):
         Integer,
         primary_key=True,
         autoincrement=True,
-        index=True,
     )
 
     scan_id: Mapped[int] = mapped_column(
@@ -51,6 +57,9 @@ class ScanTopK(Base):
         CheckConstraint(
             "rank BETWEEN 1 AND 3",
             name="ck_scan_topk_rank",
+        ),
+        UniqueConstraint(
+            "scan_id", "rank", name="uq_scan_topk_scan_rank"
         ),
     )
 

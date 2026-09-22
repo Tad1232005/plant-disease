@@ -1,22 +1,24 @@
 """Module chứa các dependencies xử lý xác thực người dùng và RBAC."""
 
 from collections.abc import Callable
-from typing import Optional
 
 from fastapi import Depends, HTTPException, status
-from fastapi.security import OAuth2PasswordBearer
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.orm import Session
 
 from app.core.security import decode_token
-from app.crud.user import get_user_by_id
+from app.crud.user import get_user_by_id, get_user_by_username
 from app.db.session import get_db
 from app.models.user import User
 
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login")
+# auto_error=False để tự xử lý trường hợp thiếu token 
+# (dùng cho get_current_user_optional)
+# thay vì để FastAPI tự raise 403 mặc định khi thiếu header Authorization
+bearer_scheme = HTTPBearer(auto_error=False)
 
 
 def get_current_user(
-    token: str = Depends(oauth2_scheme),
+    credentials: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
     db: Session = Depends(get_db),
 ) -> User:
     """Xác thực JWT Access Token và trả về user hiện tại."""
@@ -26,28 +28,47 @@ def get_current_user(
         headers={"WWW-Authenticate": "Bearer"},
     )
 
-    payload = decode_token(token)
+    try:
+        if credentials is None:
+            raise credentials_exception
+        payload = decode_token(credentials.credentials)
+    except HTTPException as exc:
+        raise credentials_exception from exc
 
     if payload.get("type") != "access":
         raise credentials_exception
 
-    subject: Optional[str] = payload.get("sub")
-    if subject is None:
+    token_version = payload.get("token_version")
+    if not isinstance(token_version, int) or isinstance(token_version, bool):
         raise credentials_exception
 
-    if str(subject).isdigit():
+    subject: str | None = payload.get("sub")
+    if not subject:
+        raise credentials_exception
+
+    # Gọi qua CRUD Layer thay vì query DB trực tiếp
+    if subject.isdigit():
         user = get_user_by_id(db, int(subject))
     else:
-        user = (
-            db.query(User)
-            .filter(User.username == str(subject))
-            .first()
-        )
+        user = get_user_by_username(db, subject)
 
     if user is None:
         raise credentials_exception
 
+    if user.status != "active" or user.token_version != token_version:
+        raise credentials_exception
+
     return user
+
+
+def get_current_user_optional(
+    credentials: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
+    db: Session = Depends(get_db),
+) -> User | None:
+    """Trả ``None`` khi thiếu token; token đã gửi nhưng sai nhận 401."""
+    if credentials is None:
+        return None
+    return get_current_user(credentials=credentials, db=db)
 
 
 def require_role(*allowed_roles: str) -> Callable[..., User]:

@@ -7,10 +7,6 @@ venv/
 # Environment & Config
 .env
 
-# Database 
-*.db
-*.sqlite3
-
 # IDE / Editor
 .vscode/
 .idea/
@@ -20,6 +16,7 @@ venv/
 
 # Test
 .pytest_cache/
+.mypy_cache/
 
 # Uploads
 storage/uploads/*
@@ -27,7 +24,6 @@ storage/gradcam/*
 !storage/uploads/.gitkeep
 !storage/gradcam/.gitkeep
 
-# Models
-app/models/best_model.pt
-app/models/classes.json
+# Model weights lớn không đưa vào Git; metadata JSON vẫn được version-control.
+app/ml_assets/models/*/model.pt
 
