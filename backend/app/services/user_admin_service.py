@@ -112,3 +112,21 @@ def list_users_for_admin(
 def list_managed_users(db: Session, *, manager_id: int, limit: int = 50, offset: int = 0) -> list[User]:
     """Manager chỉ xem các User do chính mình tạo."""
     return user_crud.get_users(db, role="user", created_by=manager_id, limit=limit, offset=offset)
+
+
+def get_user_for_admin(db: Session, user_id: int) -> User:
+    """Admin lấy chi tiết bất kỳ tài khoản nào."""
+    from fastapi import HTTPException
+    user = user_crud.get_user_by_id(db, user_id)
+    if user is None:
+        raise HTTPException(status_code=404, detail="Không tìm thấy tài khoản")
+    return user
+
+
+def get_user_for_manager(db: Session, manager_id: int, user_id: int) -> User:
+    """Manager chỉ xem User do chính mình tạo (created_by = manager_id)."""
+    from fastapi import HTTPException
+    user = user_crud.get_user_by_id(db, user_id)
+    if user is None or user.created_by != manager_id:
+        raise HTTPException(status_code=404, detail="Không tìm thấy tài khoản")
+    return user

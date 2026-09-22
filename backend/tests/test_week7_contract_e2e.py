@@ -23,7 +23,7 @@ def test_exported_contract_is_current():
     operations = sum(method in {"get", "post", "put", "patch", "delete"}
                      for path, methods in schema["paths"].items() if path.startswith("/api/v1/")
                      for method in methods)
-    assert operations == 41
+    assert operations == 49
     cfg = Config(str(BASE_DIR / "alembic.ini"))
     cfg.set_main_option("script_location", str(BASE_DIR / "alembic"))
     assert ScriptDirectory.from_config(cfg).get_heads() == [SCHEMA_REVISION]

@@ -12,11 +12,7 @@ from app.services import user_admin_service
 router = APIRouter(prefix="/manager/users", tags=["Manager Users"])
 
 
-@router.post(
-    "",
-    response_model=UserResponse,
-    status_code=status.HTTP_201_CREATED,
-)
+@router.post("", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
 def create_managed_user(
     data: ManagerCreateUserRequest,
     db: Session = Depends(get_db),
@@ -42,5 +38,16 @@ def list_managed_users(
     return user_admin_service.list_managed_users(
         db,
         manager_id=current_manager.id,
-        limit=limit, offset=offset,
+        limit=limit,
+        offset=offset,
     )
+
+
+@router.get("/{user_id}", response_model=UserResponse)
+def get_managed_user(
+    user_id: int,
+    db: Session = Depends(get_db),
+    current_manager: User = Depends(require_role("manager")),
+) -> User:
+    """Manager xem chi tiết User do chính mình tạo."""
+    return user_admin_service.get_user_for_manager(db, current_manager.id, user_id)
