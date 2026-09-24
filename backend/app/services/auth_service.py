@@ -47,13 +47,13 @@ def register_user(db: Session, user_in: UserCreate) -> User:
     """Đăng ký người dùng mới và kiểm tra trùng lặp username/email."""
     if get_user_by_username(db, user_in.username):
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
+            status_code=status.HTTP_409_CONFLICT,
             detail="Username đã tồn tại trên hệ thống",
         )
 
     if user_in.email and get_user_by_email(db, str(user_in.email)):
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
+            status_code=status.HTTP_409_CONFLICT,
             detail="Email đã được đăng ký trên hệ thống",
         )
 
@@ -63,7 +63,7 @@ def register_user(db: Session, user_in: UserCreate) -> User:
         # Chặn race giữa bước kiểm tra trùng và unique constraint lúc commit.
         db.rollback()
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
+            status_code=status.HTTP_409_CONFLICT,
             detail="Username hoặc email đã tồn tại trên hệ thống",
         ) from exc
 

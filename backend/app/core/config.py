@@ -44,6 +44,11 @@ class Settings(BaseSettings):
     JS_DIVERGENCE_THRESHOLD: float = Field(default=0.3, ge=0, le=1, allow_inf_nan=False)
     PARALLEL_MODEL_INFERENCE: bool = True
     MAX_CONCURRENT_INFERENCES: int = Field(default=1, gt=0)
+    # Grad-CAM uses a shared cached model but mutates gradients; give it its
+    # own slot so a visualisation request cannot block a new diagnosis.
+    MAX_CONCURRENT_GRADCAM: int = Field(default=1, gt=0)
+    MODEL_CACHE_SIZE: int = Field(default=6, gt=0)
+    INFERENCE_THREAD_WORKERS: int = Field(default=3, gt=0)
     MAX_UPLOAD_BYTES: int = Field(default=10 * 1024 * 1024, gt=0)
     MAX_IMAGE_PIXELS: int = Field(default=20_000_000, gt=0)
     INFERENCE_TIMEOUT_SECONDS: float = Field(default=30.0, gt=0, allow_inf_nan=False)
