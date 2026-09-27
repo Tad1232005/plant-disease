@@ -44,3 +44,9 @@
 - Không commit file dữ liệu/model lớn (`ml/data/`, `ml/models/`, `node_modules/`, `venv/`).
 - Sau khi sửa code: tự review (biến chưa khai báo, thiếu async/await, code rác như console.log/comment thừa) và chạy test/link check khi khả thi.
 - Backend tests: chạy bằng pytest trong `backend/` (mô hình và deps có thể cần venv riêng).
+
+## 7. Nợ kỹ thuật OOD (ghi ngày 2026-09-17 — KHÔNG được quên)
+- **Hiện tại (tạm)**: BE dùng ngưỡng JS hardcode `0.3` trong `config.py` (`JS_DIVERGENCE_THRESHOLD`), chưa đọc ngưỡng calibrate từ `ml/outputs/ood_threshold.json`.
+- **Việc còn lại**: ML thêm param `normalize` vào `compute_ensemble_disagreement` + re-run Step 5 với `--use-temperature` cho standard + advanced (~15 phút CPU) → ngưỡng chuẩn hoá (~0.031/0.032) + field `"score_scale": "js_normalized"` vào JSON → BE đọc thresholds từ JSON thay số 0.3.
+- Lưu ý khi làm: giữ backward-compat (default raw), ngưỡng raw không vứt (chia cho ln(N) là ra ngưỡng chuẩn hoá), disagreement luôn tính trên raw logits.
+- Quy tắc: ai đổi contract ML↔BE phải bump version field trong JSON để bên kia fail loudly thay vì sai âm thầm.
