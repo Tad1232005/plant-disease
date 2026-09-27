@@ -2,46 +2,77 @@ import { Activity, Bell, Database, FileCheck2, LayoutDashboard, Leaf, LogOut, Me
 import { useState } from 'react'
 import { NavLink, Outlet } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext.jsx'
+import { useLanguage } from '../contexts/LanguageContext.jsx'
 import Brand from './common/Brand.jsx'
+import LanguageToggle from './common/LanguageToggle.jsx'
+import ThemeToggle from './common/ThemeToggle.jsx'
 
-const items = [
-  { to: '/', label: 'Tổng quan hệ thống', icon: LayoutDashboard, end: true },
-  { to: '/users', label: 'Quản lý người dùng', icon: UserCog },
-  { to: '/farms', label: 'Dữ liệu trang trại', icon: Sprout },
-  { to: '/diseases', label: 'Nội dung bệnh cây', icon: Leaf },
-  { to: '/proposals', label: 'Duyệt đề xuất bệnh', icon: FileCheck2 },
-  { to: '/models', label: 'Phiên bản mô hình', icon: Database },
-  { to: '/system', label: 'Theo dõi hệ thống', icon: Activity },
+const navKeys = [
+  { to: '/', labelKey: 'nav.dashboard', icon: LayoutDashboard, end: true },
+  { to: '/users', labelKey: 'nav.users', icon: UserCog },
+  { to: '/farms', labelKey: 'nav.farms', icon: Sprout },
+  { to: '/diseases', labelKey: 'nav.diseases', icon: Leaf },
+  { to: '/proposals', labelKey: 'nav.proposals', icon: FileCheck2 },
+  { to: '/models', labelKey: 'nav.models', icon: Database },
+  { to: '/system', labelKey: 'nav.system', icon: Activity },
 ]
 
 function AdminSidebar({ onClose, logout, user }) {
+  const { t } = useLanguage()
+
   return (
-    <div className="flex h-full flex-col bg-leaf-900 text-white">
-      <div className="flex h-20 items-center justify-between border-b border-white/10 px-6">
+    <div className="flex h-full flex-col bg-leaf-900 dark:bg-slate-950 text-white border-r border-white/10 dark:border-slate-800 transition-colors duration-200">
+      <div className="flex h-20 items-center justify-between border-b border-white/10 dark:border-slate-800 px-6">
         <Brand to="/" light />
-        {onClose && <button className="rounded-xl p-2 text-white/60 lg:hidden" onClick={onClose}><X size={20} /></button>}
+        {onClose && <button className="rounded-xl p-2 text-white/60 hover:text-white lg:hidden" onClick={onClose}><X size={20} /></button>}
       </div>
-      <div className="mx-4 mt-5 flex items-center gap-2 rounded-xl border border-leaf-600/30 bg-leaf-800/60 px-3 py-2 text-xs font-semibold text-leaf-100">
-        <ShieldCheck size={16} /> Ứng dụng quản trị độc lập
+      <div className="mx-4 mt-5 flex items-center gap-2 rounded-xl border border-leaf-600/30 dark:border-slate-800 bg-leaf-800/60 dark:bg-slate-900/90 px-3 py-2 text-xs font-semibold text-leaf-100 dark:text-slate-300">
+        <ShieldCheck size={16} /> {t('nav.badge_admin')}
       </div>
       <nav className="flex-1 space-y-1 overflow-y-auto px-4 py-5">
-        {items.map(({ to, label, icon: Icon, end }) => (
+        {navKeys.map(({ to, labelKey, icon: Icon, end }) => (
           <NavLink
             key={to}
             to={to}
             end={end}
             onClick={onClose}
-            className={({ isActive }) => `flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-semibold transition ${isActive ? 'bg-white text-leaf-800 shadow-sm' : 'text-leaf-100/70 hover:bg-white/10 hover:text-white'}`}
+            className={({ isActive }) =>
+              `group relative flex items-center gap-3 rounded-xl px-3.5 py-3 text-sm font-semibold transition-all duration-200 ${
+                isActive
+                  ? 'bg-white text-leaf-900 shadow-sm dark:bg-slate-900 dark:text-emerald-400 dark:ring-1 dark:ring-slate-700 dark:shadow-md'
+                  : 'text-leaf-100/70 hover:bg-white/10 hover:text-white dark:text-slate-400 dark:hover:bg-slate-900/80 dark:hover:text-slate-100'
+              }`
+            }
           >
-            <Icon size={19} /> {label}
+            {({ isActive }) => (
+              <>
+                <span
+                  className={`absolute left-0 top-2 bottom-2 w-1 rounded-r-full transition-all duration-200 ${
+                    isActive ? 'bg-leaf-600 dark:bg-emerald-500 opacity-100' : 'bg-transparent opacity-0'
+                  }`}
+                />
+                <Icon
+                  size={19}
+                  className={`transition-colors duration-200 ${
+                    isActive
+                      ? 'text-leaf-700 dark:text-emerald-400'
+                      : 'text-leaf-100/60 group-hover:text-leaf-100 dark:text-slate-500 dark:group-hover:text-slate-200'
+                  }`}
+                />
+                <span className="truncate">{t(labelKey)}</span>
+              </>
+            )}
           </NavLink>
         ))}
       </nav>
-      <div className="border-t border-white/10 p-4">
-        <p className="truncate px-3 text-sm font-bold">{user.full_name || user.username}</p>
-        <p className="mb-3 truncate px-3 text-xs text-leaf-200/60">{user.email}</p>
-        <button onClick={logout} className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold text-leaf-100/70 transition hover:bg-white/10 hover:text-white">
-          <LogOut size={18} /> Đăng xuất
+      <div className="border-t border-white/10 dark:border-slate-800 p-4">
+        <p className="truncate px-3 text-sm font-bold text-white dark:text-slate-100">{user.full_name || user.username}</p>
+        <p className="mb-3 truncate px-3 text-xs text-leaf-200/60 dark:text-slate-500">{user.email}</p>
+        <button
+          onClick={logout}
+          className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold text-leaf-100/70 transition hover:bg-white/10 hover:text-white dark:text-slate-400 dark:hover:bg-slate-900 dark:hover:text-rose-400"
+        >
+          <LogOut size={18} /> {t('nav.logout')}
         </button>
       </div>
     </div>
@@ -51,9 +82,10 @@ function AdminSidebar({ onClose, logout, user }) {
 export default function AdminLayout() {
   const [mobileOpen, setMobileOpen] = useState(false)
   const { user, logout } = useAuth()
+  const { t } = useLanguage()
 
   return (
-    <div className="min-h-screen bg-slate-50">
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-950">
       <aside className="fixed inset-y-0 left-0 z-30 hidden w-72 lg:block"><AdminSidebar user={user} logout={logout} /></aside>
       {mobileOpen && (
         <div className="fixed inset-0 z-40 lg:hidden">
@@ -62,15 +94,19 @@ export default function AdminLayout() {
         </div>
       )}
       <div className="lg:pl-72">
-        <header className="sticky top-0 z-20 flex h-20 items-center justify-between border-b border-slate-200 bg-white/90 px-4 backdrop-blur-xl sm:px-7">
+        <header className="sticky top-0 z-20 flex h-20 items-center justify-between border-b border-slate-200 bg-white/90 px-4 backdrop-blur-xl dark:border-slate-800 dark:bg-slate-950/90 sm:px-7">
           <div className="flex items-center gap-3">
-            <button className="rounded-xl border border-slate-200 p-2.5 lg:hidden" onClick={() => setMobileOpen(true)} aria-label="Mở menu"><Menu size={20} /></button>
+            <button className="rounded-xl border border-slate-200 p-2.5 dark:border-slate-700 dark:text-slate-200 lg:hidden" onClick={() => setMobileOpen(true)} aria-label="Mở menu"><Menu size={20} /></button>
             <div>
-              <p className="text-xs font-medium text-slate-400">PlantCare Control Center</p>
-              <p className="text-sm font-bold text-slate-800">Bảng điều khiển quản trị</p>
+              <p className="text-xs font-medium text-slate-400 dark:text-slate-500">{t('nav.header_sub')}</p>
+              <p className="text-sm font-bold text-slate-800 dark:text-slate-100">{t('nav.header_title')}</p>
             </div>
           </div>
-          <button className="relative rounded-xl border border-slate-200 p-2.5 text-slate-500" aria-label="Thông báo"><Bell size={19} /><span className="absolute right-2 top-2 h-2 w-2 rounded-full bg-rose-500" /></button>
+          <div className="flex items-center gap-2">
+            <LanguageToggle />
+            <ThemeToggle />
+            <button className="relative rounded-xl border border-slate-200 p-2.5 text-slate-500 transition hover:border-leaf-300 hover:text-leaf-700 dark:border-slate-700 dark:text-slate-300 dark:hover:border-leaf-600 dark:hover:text-leaf-300" aria-label={t('nav.notifications')} title={t('nav.notifications')}><Bell size={19} /><span className="absolute right-2 top-2 h-2 w-2 rounded-full bg-rose-500" /></button>
+          </div>
         </header>
         <main className="p-4 sm:p-7 lg:p-8"><Outlet /></main>
       </div>
