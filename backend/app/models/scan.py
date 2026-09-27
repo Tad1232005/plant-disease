@@ -146,6 +146,7 @@ class Scan(Base):
             "ood_score IS NULL OR (ood_score >= 0 AND ood_score <= 1)",
             name="ck_scans_ood_score",
         ),
+        # Single-column indexes
         Index("idx_scans_user_id", "user_id"),
         Index("idx_scans_farm_id", "farm_id"),
         Index("idx_scans_created_at", "created_at"),
@@ -153,6 +154,9 @@ class Scan(Base):
         Index("idx_scans_primary_model_version_id", "primary_model_version_id"),
         Index("idx_scans_inference_mode", "inference_mode"),
         Index("idx_scans_validation_status", "validation_status"),
+        # Composite indexes for common pagination queries (user history, farm history)
+        Index("idx_scans_user_created", "user_id", "created_at"),
+        Index("idx_scans_farm_created", "farm_id", "created_at"),
     )
 
     # Relationships

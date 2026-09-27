@@ -28,6 +28,7 @@ if TYPE_CHECKING:
 
 from app.models.model_version import ModelVersion
 from app.schemas.model_version import RegisterModelVersionRequest
+from app.services.audit_service import audit_model_activated, audit_model_registered
 from app.services.model_artifact_service import load_artifact, SUPPORTED_MODEL_TYPES
 
 logger = logging.getLogger(__name__)
@@ -63,6 +64,7 @@ def get_model_version(db: Session, version_id: int) -> ModelVersion:
 def register_version(
     db: Session,
     data: RegisterModelVersionRequest,
+    actor_id: int | None = None,
 ) -> ModelVersion:
     """Đọc manifest, kiểm tra contract, rồi đăng ký vào DB.
 
@@ -104,6 +106,15 @@ def register_version(
         metrics_path=data.metrics_path,
     )
     db.add(version)
+    db.flush()
+    if actor_id is not None:
+        audit_model_registered(
+            db,
+            actor_id=actor_id,
+            version_id=version.id,
+            version_name=version.version_name,
+            model_type=version.model_type,
+        )
     db.commit()
     db.refresh(version)
     logger.info(
@@ -113,7 +124,11 @@ def register_version(
     return version
 
 
-def activate_version(db: Session, version_id: int) -> tuple[ModelVersion, ModelVersion | None, float]:
+def activate_version(
+    db: Session,
+    version_id: int,
+    actor_id: int | None = None,
+) -> tuple[ModelVersion, ModelVersion | None, float]:
     """Validate + warm-up + activate trong một transaction.
 
     Trả về (activated_version, deactivated_version | None, warmup_latency_ms).
@@ -189,6 +204,15 @@ def activate_version(db: Session, version_id: int) -> tuple[ModelVersion, ModelV
         old_version.is_active = False
 
     version.is_active = True
+    if actor_id is not None:
+        audit_model_activated(
+            db,
+            actor_id=actor_id,
+            version_id=version.id,
+            version_name=version.version_name,
+            model_type=version.model_type,
+            deactivated_version_id=old_version.id if old_version else None,
+        )
     try:
         db.commit()
     except Exception:

@@ -147,14 +147,18 @@ def list_history(
     *,
     limit: int,
     offset: int,
-) -> list[Scan]:
-    """Mọi tài khoản đã đăng nhập chỉ thấy scan của chính mình."""
-    return scan_crud.get_scans_by_user(
+    farm_id: int | None = None,
+) -> tuple[list[Scan], int]:
+    """Trả (items, total) để hỗ trợ pagination; chỉ scan của chính user."""
+    items = scan_crud.get_scans_by_user(
         db,
         current_user.id,
         limit=limit,
         offset=offset,
+        farm_id=farm_id,
     )
+    total = scan_crud.count_scans_by_user(db, current_user.id, farm_id=farm_id)
+    return items, total
 
 
 def _get_owned_scan(db: Session, current_user: User, scan_id: int) -> Scan:

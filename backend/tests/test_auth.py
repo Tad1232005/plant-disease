@@ -51,10 +51,10 @@ def test_register_rejects_duplicate_username_and_email(client):
     assert register(client).status_code == 201
 
     duplicate_username = {**REGISTER_PAYLOAD, "email": "other@example.com"}
-    assert register(client, duplicate_username).status_code == 400
+    assert register(client, duplicate_username).status_code == 409
 
     duplicate_email = {**REGISTER_PAYLOAD, "username": "other_farmer"}
-    assert register(client, duplicate_email).status_code == 400
+    assert register(client, duplicate_email).status_code == 409
 
 
 def test_register_rejects_role_injection_and_weak_password(client):

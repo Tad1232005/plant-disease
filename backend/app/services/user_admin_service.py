@@ -10,7 +10,11 @@ from app.models.user import User
 from app.schemas.user import AdminCreateUserRequest, ManagerCreateUserRequest
 from app.schemas.user import UserStatusRequest
 from sqlalchemy import select, text
-from app.services.audit_service import record_event
+from app.services.audit_service import (
+    audit_user_status_changed,
+    audit_user_created,
+    record_event,
+)
 from app.services.account_control_service import ACCOUNT_CONTROL_LOCK, lock_active_actor
 
 
@@ -38,11 +42,18 @@ def set_user_status(db: Session, *, actor: User, user_id: int, data: UserStatusR
     previous = target.status
     target.status = data.status
     target.token_version += 1
-    record_event(db, actor_id=actor.id, action="user.status_changed", resource_type="user",
-                 resource_id=target.id, details={"from": previous, "to": data.status, "reason": data.reason})
+    audit_user_status_changed(
+        db,
+        actor_id=actor.id,
+        target_id=target.id,
+        from_status=previous,
+        to_status=data.status,
+        reason=data.reason,
+    )
     db.commit()
     db.refresh(target)
     return target
+
 
 ProvisionRequest = AdminCreateUserRequest | ManagerCreateUserRequest
 
@@ -66,14 +77,14 @@ def create_user_by(
 
     if user_crud.get_user_by_username(db, data.username) is not None:
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
+            status_code=status.HTTP_409_CONFLICT,
             detail="Username đã tồn tại trên hệ thống",
         )
 
     email_value = str(data.email) if data.email is not None else None
     if email_value and user_crud.get_user_by_email(db, email_value) is not None:
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
+            status_code=status.HTTP_409_CONFLICT,
             detail="Email đã được đăng ký trên hệ thống",
         )
 
@@ -91,10 +102,13 @@ def create_user_by(
     except IntegrityError as exc:
         db.rollback()
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
+            status_code=status.HTTP_409_CONFLICT,
             detail="Username hoặc email đã tồn tại trên hệ thống",
         ) from exc
     db.refresh(user)
+    audit_user_created(db, actor_id=creator.id, user_id=user.id,
+                       role=role, created_by_role=creator.role)
+    db.commit()
     return user
 
 

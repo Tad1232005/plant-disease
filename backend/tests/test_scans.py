@@ -1,13 +1,13 @@
 """Kiểm thử Scan API theo ownership Tuần 4."""
 
-from app.core.config import settings
-from app.services import scan_service
 import json
 
-from app.models import DiseaseInfo, ModelVersion, Scan, ScanModelResult, ScanTopK
+from app.core.config import settings
+from app.models import DiseaseInfo, Farm, ModelVersion, Scan, ScanModelResult, ScanTopK
+from app.services import scan_service
 
 
-def create_scan(db_session, user_id: int, suffix: str) -> Scan:
+def create_scan(db_session, user_id: int, suffix: str, farm_id: int | None = None) -> Scan:
     model = db_session.query(ModelVersion).filter_by(
         version_name="scan-test-v1"
     ).first()
@@ -22,6 +22,7 @@ def create_scan(db_session, user_id: int, suffix: str) -> Scan:
         db_session.flush()
     scan = Scan(
         user_id=user_id,
+        farm_id=farm_id,
         image_path=f"storage/uploads/{suffix}.jpg",
         predicted_label="Tomato___Early_blight",
         confidence=0.8,
@@ -100,11 +101,31 @@ def test_scan_history_has_bounded_pagination(
     )
 
     assert response.status_code == 200
+    assert response.headers.get("X-Total-Count") == "3"
+    assert response.headers.get("X-Limit") == "1"
+    assert response.headers.get("X-Offset") == "1"
     assert [item["id"] for item in response.json()] == [scans[1].id]
     assert client.get(
         "/api/v1/scans/history?limit=101",
         headers=user_headers,
     ).status_code == 422
+
+
+def test_scan_history_filters_by_farm(client, db_session, normal_user, user_headers):
+    farm1 = Farm(name="Farm 1", owner_id=normal_user.id)
+    farm2 = Farm(name="Farm 2", owner_id=normal_user.id)
+    db_session.add_all([farm1, farm2])
+    db_session.flush()
+
+    scan_farm1 = create_scan(db_session, normal_user.id, "farm1", farm_id=farm1.id)
+    create_scan(db_session, normal_user.id, "farm2", farm_id=farm2.id)
+
+    resp = client.get(f"/api/v1/scans/history?farm_id={farm1.id}", headers=user_headers)
+    assert resp.status_code == 200
+    assert resp.headers.get("X-Total-Count") == "1"
+    data = resp.json()
+    assert len(data) == 1
+    assert data[0]["id"] == scan_farm1.id
 
 
 def test_scan_detail_includes_disease_and_sorted_top3(
@@ -264,8 +285,8 @@ def test_invalid_scan_detail_does_not_return_treatment(
     response = client.get(f"/api/v1/scans/{scan.id}", headers=user_headers)
 
     assert response.status_code == 200
-    assert response.json()["disease_name"] is None
-    assert response.json()["treatment"] is None
+    assert response.json()["disease_name"] == None
+    assert response.json()["treatment"] == None
 
 
 def test_scan_detail_tolerates_corrupt_model_topk_json(

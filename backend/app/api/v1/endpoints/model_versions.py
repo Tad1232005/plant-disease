@@ -53,7 +53,7 @@ def register_version(
     Version sau khi đăng ký ở trạng thái inactive.
     Gọi POST /{id}/activate để đưa vào sản xuất.
     """
-    return model_version_service.register_version(db, data)
+    return model_version_service.register_version(db, data, actor_id=_actor.id)
 
 
 @router.post("/{version_id}/activate", response_model=ActivateModelVersionResponse)
@@ -68,7 +68,9 @@ def activate_version(
     Ba model_type khác nhau có thể active song song.
     Nếu warm-up thất bại, transaction rollback và version cũ giữ nguyên.
     """
-    version, old_version, warmup_ms = model_version_service.activate_version(db, version_id)
+    version, old_version, warmup_ms = model_version_service.activate_version(
+        db, version_id, actor_id=_actor.id
+    )
     response_data = ModelVersionResponse.model_validate(version).model_dump()
     response_data["deactivated_version_id"] = old_version.id if old_version else None
     response_data["deactivated_version_name"] = old_version.version_name if old_version else None

@@ -2,7 +2,7 @@
 
 from typing import Any
 
-from fastapi import APIRouter, Depends, Query, status
+from fastapi import APIRouter, Depends, Query, Response, status
 from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
@@ -58,16 +58,24 @@ def create_gradcam_image(
 def get_scan_history(
     limit: int = Query(default=50, ge=1, le=100),
     offset: int = Query(default=0, ge=0),
+    farm_id: int | None = Query(default=None, ge=1, description="Lọc kết quả theo Farm ID"),
+    response: Response = None,  # type: ignore[assignment]
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> list[Scan]:
-    """Lấy lịch sử scan của chính tài khoản đang đăng nhập."""
-    return scan_service.list_history(
+    """Lấy lịch sử scan của chính tài khoản; trả X-Total-Count cho pagination."""
+    items, total = scan_service.list_history(
         db,
         current_user,
         limit=limit,
         offset=offset,
+        farm_id=farm_id,
     )
+    if response is not None:
+        response.headers["X-Total-Count"] = str(total)
+        response.headers["X-Limit"] = str(limit)
+        response.headers["X-Offset"] = str(offset)
+    return items
 
 
 @router.get("/{scan_id}", response_model=ScanDetailResponse)
