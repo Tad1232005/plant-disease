@@ -41,7 +41,10 @@ class Settings(BaseSettings):
     MODEL_ARTIFACT_ROOT: str = str(BASE_DIR / "app" / "ml_assets" / "models")
     CONFIDENCE_THRESHOLD: float = Field(default=0.3, ge=0, le=1, allow_inf_nan=False)
     TOP1_MARGIN_THRESHOLD: float = Field(default=0.05, ge=0, le=1, allow_inf_nan=False)
-    JS_DIVERGENCE_THRESHOLD: float = Field(default=0.3, ge=0, le=1, allow_inf_nan=False)
+    # Ngưỡng Jensen-Shannon Divergence chuẩn hóa [0, 1] (JSD / ln(num_models)).
+    # Calibrated từ tập thực nghiệm: 95th percentile ID là ~0.031 (standard) và ~0.032 (advanced).
+    # Mặc định 0.035 nếu không load được từ ood_threshold.json.
+    JS_DIVERGENCE_THRESHOLD: float = Field(default=0.035, ge=0, le=1, allow_inf_nan=False)
     PARALLEL_MODEL_INFERENCE: bool = True
     MAX_CONCURRENT_INFERENCES: int = Field(default=1, gt=0)
     # Grad-CAM uses a shared cached model but mutates gradients; give it its
