@@ -6,6 +6,7 @@ import Modal from '../components/common/Modal.jsx'
 import PageHeader from '../components/common/PageHeader.jsx'
 import StatCard from '../components/common/StatCard.jsx'
 import StatusBadge from '../components/common/StatusBadge.jsx'
+import { useLanguage } from '../contexts/LanguageContext.jsx'
 import { initialModelVersions } from '../data/demoData.js'
 import { modelVersionsApi } from '../services/modelVersions.js'
 import { loadCollection, saveCollection } from '../utils/storage.js'
@@ -26,6 +27,7 @@ function unwrapList(payload) {
 }
 
 export default function ModelVersionsPage() {
+  const { t } = useLanguage()
   const [models, setModels] = useState(() => loadCollection(STORAGE_KEY, initialModelVersions))
   const [mode, setMode] = useState('loading')
   const [editing, setEditing] = useState(null)
@@ -68,14 +70,14 @@ export default function ModelVersionsPage() {
 
   const production = models.find((item) => item.status === 'production')
   const columns = [
-    { key: 'version', label: 'Phiên bản', sortable: true, render: (value, row) => <div><p className="font-black text-slate-800">{value}</p><p className="mt-0.5 text-xs text-slate-400">{row.backbone}</p></div> },
-    { key: 'accuracy', label: 'Accuracy', sortable: true, render: (value) => <span className="font-extrabold text-leaf-700">{value}%</span> },
-    { key: 'classes', label: 'Số lớp', sortable: true },
+    { key: 'version', label: t('models.col_version'), sortable: true, render: (value, row) => <div><p className="font-black text-slate-800 dark:text-slate-100">{value}</p><p className="mt-0.5 text-xs text-slate-400 dark:text-slate-500">{row.backbone}</p></div> },
+    { key: 'accuracy', label: t('models.col_acc'), sortable: true, render: (value) => <span className="font-extrabold text-leaf-700 dark:text-leaf-400">{value}%</span> },
+    { key: 'classes', label: t('models.col_classes'), sortable: true },
     { key: 'calibration', label: 'Calibration' },
-    { key: 'status', label: 'Trạng thái', render: (value) => <StatusBadge value={value} /> },
+    { key: 'status', label: t('models.col_status'), render: (value) => <StatusBadge value={value} /> },
   ]
 
   return (
-    <div className="mx-auto max-w-7xl"><PageHeader eyebrow="Tuần 6 • Model Versions" title="Quản lý phiên bản mô hình" description="Theo dõi backbone, accuracy, calibration và model đang chạy Production." action={<button className="btn-primary" onClick={openCreate}><Plus size={18} /> Thêm phiên bản</button>} /><div className="mb-6 grid gap-4 sm:grid-cols-3"><StatCard icon={Database} label="Tổng phiên bản" value={models.length} /><StatCard icon={Rocket} label="Production" value={production?.version || '—'} tone="blue" /><StatCard icon={CheckCircle2} label="Accuracy hiện tại" value={production ? `${production.accuracy}%` : '—'} tone="amber" /></div>{message && <p className="mb-5 rounded-2xl border border-slate-200 bg-white p-4 text-sm text-slate-700">{message}</p>}<DataTable columns={columns} data={models} searchPlaceholder="Tìm phiên bản hoặc backbone..." actions={(row) => <span className="inline-flex gap-1"><button type="button" onClick={() => openEdit(row)} className="rounded-lg p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-700" aria-label="Sửa"><Edit3 size={17} /></button><button type="button" disabled={row.status === 'production' || saving} onClick={() => activate(row)} className="rounded-lg p-2 text-slate-400 hover:bg-leaf-50 hover:text-leaf-700 disabled:opacity-30" aria-label="Đưa lên Production"><Rocket size={17} /></button></span>} /><Modal open={formOpen} onClose={() => setFormOpen(false)} title={editing ? 'Cập nhật model version' : 'Thêm model version'} description="Thông tin metadata của model, không upload file trọng số tại màn hình này." size="xl"><CrudForm fields={fields} defaultValues={editing || { status: 'staging', classes: 38 }} onSubmit={saveModel} onCancel={() => setFormOpen(false)} submitLabel="Lưu phiên bản" loading={saving} /></Modal></div>
+    <div className="mx-auto max-w-7xl"><PageHeader eyebrow={t('models.eyebrow')} title={t('models.title')} description={t('models.desc')} action={<button className="btn-primary" onClick={openCreate}><Plus size={18} /> {t('models.add_btn')}</button>} /><div className="mb-6 grid gap-4 sm:grid-cols-3"><StatCard icon={Database} label={t('models.stat_total')} value={models.length} /><StatCard icon={Rocket} label={t('models.stat_production')} value={production?.version || '—'} tone="blue" /><StatCard icon={CheckCircle2} label={t('models.stat_accuracy')} value={production ? `${production.accuracy}%` : '—'} tone="amber" /></div>{message && <p className="mb-5 rounded-2xl border border-slate-200 bg-white p-4 text-sm text-slate-700 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-200">{t(message)}</p>}<DataTable columns={columns} data={models} searchPlaceholder={t('models.search_placeholder')} actions={(row) => <span className="inline-flex gap-1"><button type="button" onClick={() => openEdit(row)} className="rounded-lg p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-slate-800 dark:hover:text-slate-200" aria-label={t('common.edit')}><Edit3 size={17} /></button><button type="button" disabled={row.status === 'production' || saving} onClick={() => activate(row)} className="rounded-lg p-2 text-slate-400 hover:bg-leaf-50 hover:text-leaf-700 dark:hover:bg-slate-800 dark:hover:text-leaf-300 disabled:opacity-30" aria-label={t('models.activate_prod')}><Rocket size={17} /></button></span>} /><Modal open={formOpen} onClose={() => setFormOpen(false)} title={editing ? t('models.modal_edit') : t('models.modal_create')} description={t('models.modal_desc')} size="xl"><CrudForm fields={fields} defaultValues={editing || { status: 'staging', classes: 38 }} onSubmit={saveModel} onCancel={() => setFormOpen(false)} submitLabel={t('models.save_btn')} loading={saving} /></Modal></div>
   )
 }

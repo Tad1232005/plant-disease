@@ -6,6 +6,19 @@
     <meta name="theme-color" content="#17472e" />
     <meta name="description" content="PlantCare AI - Trang quản trị hệ thống nhận diện bệnh lá cây." />
     <title>PlantCare AI Admin</title>
+    <script>
+      // Áp dụng theme đã lưu trước khi React mount để tránh nháy sáng (FOUC).
+      (function () {
+        try {
+          var saved = localStorage.getItem('plantcare_admin_theme')
+          var theme = saved === 'dark' || saved === 'light' ? saved : 'light'
+          document.documentElement.dataset.theme = theme
+          if (theme === 'dark') document.documentElement.classList.add('dark')
+        } catch (error) {
+          document.documentElement.dataset.theme = 'light'
+        }
+      })()
+    </script>
   </head>
   <body>
     <div id="root"></div>
