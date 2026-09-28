@@ -22,7 +22,7 @@ from PIL import Image
 from sqlalchemy.orm import Session
 from torchvision import models, transforms
 
-from app.core.config import settings
+from app.core.config import BASE_DIR, Settings, settings
 from app.models.model_version import ModelVersion
 from app.services.model_artifact_service import load_artifact
 
@@ -185,6 +185,7 @@ class PredictService:
                 ),
             ]
         )
+        self._calibrated_js_thresholds = self._load_calibrated_thresholds()
 
     @staticmethod
     def _build_model(model_type: str, class_count: int) -> nn.Module:
@@ -316,6 +317,47 @@ class PredictService:
                 "top_k": [],
             }
 
+    @classmethod
+    def _load_calibrated_thresholds(cls) -> dict[str, float]:
+        """Đọc và chuẩn hóa ngưỡng ensemble disagreement từ ood_threshold.json theo từng tier."""
+        candidate_paths = [
+            Path(settings.MODEL_ARTIFACT_ROOT) / "ood_threshold.json",
+            BASE_DIR / "app" / "ml_assets" / "ood_threshold.json",
+            BASE_DIR.parent / "ml" / "outputs" / "ood_threshold.json",
+        ]
+        thresholds: dict[str, float] = {}
+        for candidate in candidate_paths:
+            if candidate.is_file():
+                try:
+                    with candidate.open("r", encoding="utf-8") as f:
+                        data = json.load(f)
+                    tiers = data.get("tiers", {})
+                    for tier_name, tier_info in tiers.items():
+                        models_list = tier_info.get("models", [])
+                        n_models = len(models_list)
+                        sig = tier_info.get("signals", {}).get("ensemble_disagreement", {})
+                        raw_th = sig.get("threshold")
+                        if raw_th is not None and n_models > 1 and math.log(n_models) > 0:
+                            norm_th = min(1.0, max(0.0, float(raw_th) / math.log(n_models)))
+                            thresholds[tier_name] = round(norm_th, 6)
+                    if thresholds:
+                        logger.info("Loaded calibrated OOD disagreement thresholds from %s: %s", candidate, thresholds)
+                        return thresholds
+                except Exception as exc:
+                    logger.warning("Failed to load OOD thresholds from %s: %s", candidate, exc)
+        return thresholds
+
+    def get_js_divergence_threshold(self, mode: InferenceMode, num_models: int) -> float:
+        """Lấy ngưỡng JS divergence: ưu tiên override từ settings nếu khác default, sau đó đến calibrated tier threshold."""
+        default_val = float(Settings.model_fields["JS_DIVERGENCE_THRESHOLD"].default)
+        current_val = float(settings.JS_DIVERGENCE_THRESHOLD)
+        # Dùng math.isclose thay vì != để tránh false-positive với float repr
+        if not math.isclose(current_val, default_val, rel_tol=1e-9, abs_tol=1e-12):
+            return current_val
+        if num_models > 1 and mode in self._calibrated_js_thresholds:
+            return self._calibrated_js_thresholds[mode]
+        return current_val
+
     @staticmethod
     def _js_divergence(probabilities: Sequence[torch.Tensor]) -> float:
         if len(probabilities) < 2:
@@ -384,6 +426,7 @@ class PredictService:
             for rank, (conf, idx) in enumerate(zip(topk_conf, topk_idx), start=1)
         ]
 
+        js_threshold = self.get_js_divergence_threshold(mode, len(successful))
         checks = [
             {"rule": "confidence_below_threshold", "value": confidence,
              "threshold": settings.CONFIDENCE_THRESHOLD, "comparison": ">=",
@@ -392,8 +435,8 @@ class PredictService:
              "threshold": settings.TOP1_MARGIN_THRESHOLD, "comparison": ">=",
              "passed": margin >= settings.TOP1_MARGIN_THRESHOLD},
             {"rule": "model_disagreement_too_high", "value": js_divergence,
-             "threshold": settings.JS_DIVERGENCE_THRESHOLD, "comparison": "<=",
-             "passed": js_divergence <= settings.JS_DIVERGENCE_THRESHOLD},
+             "threshold": js_threshold, "comparison": "<=",
+             "passed": js_divergence <= js_threshold},
         ]
         failed_rules = [check["rule"] for check in checks if not check["passed"]]
         rejection_reason = failed_rules[0] if failed_rules else None
@@ -409,7 +452,13 @@ class PredictService:
             agreement_status = "agreed"
         else:
             agreement_status = "disagreed"
-        ood_score = max(1.0 - confidence, entropy, js_divergence)
+        # ood_score: tổng hợp có trọng số 3 tín hiệu bất định khác nhau.
+        # (1-confidence): uncertainty của ensemble output [0,1]
+        # entropy: độ phân tán phân phối xác suất ensemble [0,1]
+        # js_divergence: bất đồng giữa các model (normalized) [0,1]
+        # Trọng số reflect rằng confidence và entropy đo cùng nguồn (ensemble),
+        # trong khi JS là tín hiệu độc lập từ inter-model disagreement.
+        ood_score = min(1.0, 0.4 * (1.0 - confidence) + 0.3 * entropy + 0.3 * js_divergence)
         primary = next(
             (item for item in successful if item["model_type"] == "efficientnet_b0"),
             successful[0],
