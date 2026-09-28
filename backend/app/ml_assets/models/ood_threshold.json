@@ -1,0 +1,134 @@
+{
+  "ood_method": "ensemble_disagreement",
+  "percentile_id": 95,
+  "high_conf_msp": 0.99,
+  "low_conf_msp": 0.5,
+  "tiers": {
+    "basic": {
+      "models": [
+        "efficientnet_b0_f"
+      ],
+      "primary": "efficientnet_b0_f",
+      "gates": {
+        "high_conf_msp": 0.9852286577224731,
+        "low_conf_msp": 0.5084525406360626
+      },
+      "n_id_images": 2000,
+      "n_ood_images": 100,
+      "id_stats": {
+        "mean": 0.9815149127990007,
+        "std": 0.07777315497006516,
+        "p50": 0.9986623525619507,
+        "p95": 0.9999357521533966,
+        "p99": 0.9999830734729767,
+        "max": 0.9999996423721313
+      },
+      "signals": {
+        "msp": {
+          "threshold": 0.9334873557090759,
+          "tpr_id": 0.95,
+          "fpr_ood": 0.1
+        },
+        "entropy": {
+          "threshold": 0.08941421508789013,
+          "tpr_id": 0.95,
+          "fpr_ood": 0.12
+        },
+        "energy": {
+          "threshold": -8.59792232513428,
+          "tpr_id": 0.95,
+          "fpr_ood": 0.13
+        }
+      }
+    },
+    "standard": {
+      "models": [
+        "efficientnet_b0_f",
+        "mobilenet_v2_f"
+      ],
+      "primary": "efficientnet_b0_f",
+      "gates": {
+        "high_conf_msp": 0.9852286577224731,
+        "low_conf_msp": 0.5084525406360626
+      },
+      "n_id_images": 2000,
+      "n_ood_images": 100,
+      "id_stats": {
+        "mean": 0.010111415842245324,
+        "std": 0.05651760934855458,
+        "p50": 1.4235924936656374e-05,
+        "p95": 0.021538212709128854,
+        "p99": 0.3390218055248259,
+        "max": 0.6894936561584473
+      },
+      "signals": {
+        "msp": {
+          "threshold": 0.9334873557090759,
+          "tpr_id": 0.95,
+          "fpr_ood": 0.1
+        },
+        "entropy": {
+          "threshold": 0.08941421508789013,
+          "tpr_id": 0.95,
+          "fpr_ood": 0.12
+        },
+        "energy": {
+          "threshold": -8.59792232513428,
+          "tpr_id": 0.95,
+          "fpr_ood": 0.13
+        },
+        "ensemble_disagreement": {
+          "threshold": 0.021538212709128854,
+          "tpr_id": 0.95,
+          "fpr_ood": 0.04
+        }
+      }
+    },
+    "advanced": {
+      "models": [
+        "efficientnet_b0_f",
+        "mobilenet_v2_f",
+        "resnet50_f"
+      ],
+      "primary": "efficientnet_b0_f",
+      "gates": {
+        "high_conf_msp": 0.9852286577224731,
+        "low_conf_msp": 0.5084525406360626
+      },
+      "n_id_images": 2000,
+      "n_ood_images": 100,
+      "id_stats": {
+        "mean": 0.014316648897746446,
+        "std": 0.0737793648945195,
+        "p50": 2.3386509383271914e-05,
+        "p95": 0.03525397293269634,
+        "p99": 0.46094605565071095,
+        "max": 0.7986556887626648
+      },
+      "signals": {
+        "msp": {
+          "threshold": 0.9334873557090759,
+          "tpr_id": 0.95,
+          "fpr_ood": 0.1
+        },
+        "entropy": {
+          "threshold": 0.08941421508789013,
+          "tpr_id": 0.95,
+          "fpr_ood": 0.12
+        },
+        "energy": {
+          "threshold": -8.59792232513428,
+          "tpr_id": 0.95,
+          "fpr_ood": 0.13
+        },
+        "ensemble_disagreement": {
+          "threshold": 0.03525397293269634,
+          "tpr_id": 0.95,
+          "fpr_ood": 0.05
+        }
+      }
+    }
+  },
+  "confidence_temperature": 1.4939864873886108,
+  "msp_scale": "calibrated"
+}
