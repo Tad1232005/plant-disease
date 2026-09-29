@@ -1,15 +1,63 @@
 import { Activity, Database, Leaf, ScanLine, Server, ShieldCheck, Sprout, Users } from 'lucide-react'
+import { useEffect, useState } from 'react'
 import StatCard from '../components/common/StatCard.jsx'
 import StatusBadge from '../components/common/StatusBadge.jsx'
 import { useLanguage } from '../contexts/LanguageContext.jsx'
+import { API_ORIGIN } from '../services/client.js'
+import { adminStatsApi } from '../services/stats.js'
+import { DB_TABLE_COUNT, systemHealthApi } from '../services/systemHealth.js'
+
+const UNKNOWN = '—'
 
 export default function AdminDashboardPage() {
   const { t } = useLanguage()
+  const [overview, setOverview] = useState(null)
+  // null = đang kiểm tra, true = OK, false = lỗi (BE tắt / DB chưa sẵn sàng / không đọc được policy).
+  const [health, setHealth] = useState({ backend: null, database: null, model: null })
+  // null = chưa lấy được danh sách version, [] = API OK nhưng không có version active.
+  const [modelVersions, setModelVersions] = useState(null)
+
+  useEffect(() => {
+    let active = true
+    const update = (key, value) => { if (active) setHealth((current) => ({ ...current, [key]: value })) }
+
+    adminStatsApi.overview()
+      .then((payload) => { if (active) setOverview(payload?.stats || payload?.data || payload || null) })
+      .catch(() => { if (active) setOverview(null) })
+    systemHealthApi.live().then((ok) => update('backend', ok))
+    systemHealthApi.ready().then((ok) => update('database', ok))
+    systemHealthApi.capabilities().then((ok) => update('model', ok))
+    systemHealthApi.activeModelVersions()
+      .then((items) => { if (active) setModelVersions((Array.isArray(items) ? items : []).map((item) => item.version_name)) })
+      .catch(() => { if (active) setModelVersions(null) })
+
+    return () => { active = false }
+  }, [])
+
+  const pendingStatus = (value) => (value === null ? 'pending' : value ? 'active' : 'inactive')
+  const statusLabel = (status, offlineLabel) => {
+    if (status === 'pending') return t('dashboard.service_checking')
+    return status === 'active' ? t('dashboard.service_active') : (offlineLabel || t('dashboard.service_inactive'))
+  }
+
+  const databaseDetail = health.database === null
+    ? t('dashboard.service_checking')
+    : health.database
+      ? t('dashboard.service_tables', { count: DB_TABLE_COUNT })
+      : t('dashboard.service_db_error')
+
+  const modelDetail = health.model === null
+    ? t('dashboard.service_checking')
+    : health.model === false
+      ? t('dashboard.service_model_error')
+      : modelVersions?.length
+        ? modelVersions.join(' · ')
+        : t('dashboard.service_model_ready')
 
   const services = [
-    { name: 'FastAPI Backend', detail: 'http://localhost:8000', status: 'active' },
-    { name: 'SQLite Database', detail: '6 tables', status: 'active' },
-    { name: 'Model Inference', detail: 'plant_disease_v2.1.pt', status: 'active' },
+    { key: 'backend', name: t('dashboard.service_backend'), detail: API_ORIGIN, status: pendingStatus(health.backend) },
+    { key: 'database', name: t('dashboard.service_db'), detail: databaseDetail, status: pendingStatus(health.database), offlineLabel: t('dashboard.service_not_ready') },
+    { key: 'model', name: t('dashboard.service_model'), detail: modelDetail, status: pendingStatus(health.model), offlineLabel: t('dashboard.service_not_ready') },
   ]
 
   return (
@@ -22,10 +70,10 @@ export default function AdminDashboardPage() {
         </p>
       </div>
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <StatCard icon={Users} label={t('dashboard.stat_users')} value="248" note="9.4%" />
-        <StatCard icon={ScanLine} label={t('dashboard.stat_scans')} value="1,842" note="14.2%" tone="blue" />
-        <StatCard icon={Sprout} label={t('dashboard.stat_farms')} value="36" tone="amber" />
-        <StatCard icon={Database} label={t('dashboard.stat_model')} value="v2.1" tone="purple" />
+        <StatCard icon={Users} label={t('dashboard.stat_users')} value={overview?.total_users ?? UNKNOWN} />
+        <StatCard icon={ScanLine} label={t('dashboard.stat_scans')} value={overview?.total_scans ?? UNKNOWN} tone="blue" />
+        <StatCard icon={Sprout} label={t('dashboard.stat_farms')} value={overview?.total_farms ?? UNKNOWN} tone="amber" />
+        <StatCard icon={Database} label={t('dashboard.stat_model')} value={modelVersions?.length ?? UNKNOWN} tone="purple" />
       </div>
 
       <div className="mt-6 grid gap-6 xl:grid-cols-[1.05fr_.95fr]">
@@ -41,7 +89,7 @@ export default function AdminDashboardPage() {
           </div>
           <div className="mt-5 divide-y divide-slate-100 dark:divide-slate-800">
             {services.map((service) => (
-              <div key={service.name} className="flex items-center justify-between gap-3 py-4">
+              <div key={service.key} className="flex items-center justify-between gap-3 py-4">
                 <div className="flex items-center gap-3">
                   <span className="grid h-10 w-10 place-items-center rounded-xl bg-slate-50 text-slate-500 dark:bg-slate-800 dark:text-slate-400">
                     <Server size={18} />
@@ -51,7 +99,7 @@ export default function AdminDashboardPage() {
                     <p className="mt-0.5 text-xs text-slate-400 dark:text-slate-500">{service.detail}</p>
                   </div>
                 </div>
-                <StatusBadge value={service.status} />
+                <StatusBadge value={service.status}>{statusLabel(service.status, service.offlineLabel)}</StatusBadge>
               </div>
             ))}
           </div>

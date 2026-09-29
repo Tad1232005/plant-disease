@@ -20,7 +20,7 @@ export default function App() {
         <Route element={<AdminLayout />}>
           <Route index element={<AdminDashboardPage />} />
           <Route path="users" element={<UsersPage />} />
-          <Route path="farms" element={<FarmsPage adminMode />} />
+          <Route path="farms" element={<FarmsPage />} />
           <Route path="diseases" element={<DiseaseManagementPage />} />
           <Route path="proposals" element={<DiseaseProposalsPage />} />
           <Route path="models" element={<ModelVersionsPage />} />

@@ -92,18 +92,4 @@ export const initialProposals = [
   { id: 503, disease_name: 'Vàng lá khoai tây', label_key: 'potato_yellow_leaf', plant: 'Khoai tây', symptoms: 'Lá vàng từ mép, sinh trưởng chậm.', treatment: 'Kiểm tra đất và dinh dưỡng trước khi xử lý.', evidence: 'Một mẫu đơn lẻ, cần bổ sung dữ liệu.', proposer_name: 'Nguyễn Hải Nam', status: 'rejected', created_at: '15/08/2026 10:15', admin_note: 'Chưa đủ bằng chứng chuyên môn.' },
 ]
 
-export const initialModelVersions = [
-  { id: 1, version: 'v2.1.0', backbone: 'EfficientNet-B0', accuracy: 94.8, calibration: 'Temperature 1.18', classes: 38, status: 'production', created_at: '18/08/2026' },
-  { id: 2, version: 'v2.0.0', backbone: 'MobileNetV2', accuracy: 92.4, calibration: 'Temperature 1.23', classes: 38, status: 'staging', created_at: '12/08/2026' },
-  { id: 3, version: 'v1.0.0', backbone: 'MobileNetV2', accuracy: 89.7, calibration: 'Chưa calibration', classes: 38, status: 'archived', created_at: '01/08/2026' },
-]
 
-export const adminOverviewDemo = {
-  total_users: 248,
-  total_scans: 1842,
-  total_farms: 36,
-  active_model: 'v2.1.0',
-  scans_by_day: [182, 224, 198, 276, 241, 315, 286],
-  users_by_role: [{ name: 'Nông dân', value: 184 }, { name: 'Kỹ thuật viên', value: 38 }, { name: 'Quản lý', value: 21 }, { name: 'Admin', value: 5 }],
-  disease_breakdown: [{ name: 'Khỏe mạnh', value: 1096 }, { name: 'Bệnh lá', value: 586 }, { name: 'Ảnh OOD', value: 160 }],
-}

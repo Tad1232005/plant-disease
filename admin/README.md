@@ -15,17 +15,18 @@ Mở `http://localhost:5174`.
 
 Tài khoản demo: `admin` / `123456`.
 
-## Chức năng Tuần 6–7
+## Chức năng chính
 
 - Duyệt/từ chối đề xuất bệnh của Kỹ thuật viên tại `/proposals`.
-- Quản lý Model Version, accuracy, calibration và model Production tại `/models`.
+- Quản lý Model Version tại `/models`: liệt kê bundle đã đăng ký, đăng ký bundle mới từ `manifest.json` và kích hoạt lên Production.
 - Dashboard thống kê hệ thống từ `GET /api/v1/stats/admin/overview` tại `/system`.
-- Các trang ưu tiên API thật và tự dùng dữ liệu demo nếu Backend chưa có endpoint.
+- Các trang ưu tiên API thật và tự dùng dữ liệu demo nếu Backend chưa có endpoint (trang Model Version đã bỏ dữ liệu demo, luôn đọc từ API).
 
 Các API đã chuẩn bị:
 
 - `GET/PUT /api/v1/admin/disease-proposals`
-- `GET/POST/PUT /api/v1/model-versions`
+- `GET/POST /api/v1/admin/model-versions`
+- `POST /api/v1/admin/model-versions/{id}/activate`
 - `GET /api/v1/stats/admin/overview`
 
 ## Cấu trúc

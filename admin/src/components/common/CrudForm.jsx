@@ -4,12 +4,30 @@ import { useForm } from 'react-hook-form'
 import { z } from 'zod'
 import { useLanguage } from '../../contexts/LanguageContext.jsx'
 
+/**
+ * Chuỗi rỗng từ input number → undefined để field `required: false` thực sự là tuỳ chọn
+ * (z.coerce.number() sẽ biến '' thành 0, không phân biệt được "bỏ trống" và 0 thật).
+ */
+function emptyStringToUndefined(value) {
+  if (value === '' || value === null || value === undefined) return undefined
+  return Number(value)
+}
+
 function createSchema(fields) {
   const shape = {}
   fields.forEach((field) => {
     if (field.type === 'number') {
-      let rule = z.coerce.number({ invalid_type_error: `${field.label} phải là số` })
+      const typeMessage = `${field.label} phải là số`
+      let rule = z.coerce.number({ invalid_type_error: typeMessage })
+      if (field.required === false) {
+        let optionalRule = z.number({ invalid_type_error: typeMessage })
+        if (field.min !== undefined) optionalRule = optionalRule.min(field.min, `${field.label} phải từ ${field.min}`)
+        if (field.max !== undefined) optionalRule = optionalRule.max(field.max, `${field.label} không được lớn hơn ${field.max}`)
+        shape[field.name] = z.preprocess(emptyStringToUndefined, optionalRule.optional())
+        return
+      }
       if (field.min !== undefined) rule = rule.min(field.min, `${field.label} phải từ ${field.min}`)
+      if (field.max !== undefined) rule = rule.max(field.max, `${field.label} không được lớn hơn ${field.max}`)
       shape[field.name] = rule
       return
     }

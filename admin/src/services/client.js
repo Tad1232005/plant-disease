@@ -2,6 +2,9 @@ import axios from 'axios'
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api/v1'
 
+// Health check của backend nằm ở gốc service (không nằm dưới /api/v1): /health/live, /health/ready.
+export const API_ORIGIN = API_BASE_URL.replace(/\/api\/v1\/?$/, '')
+
 export const apiClient = axios.create({
   baseURL: API_BASE_URL,
   timeout: 20000,
