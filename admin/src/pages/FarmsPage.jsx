@@ -13,7 +13,7 @@ import { loadCollection, saveCollection } from '../utils/storage.js'
 
 const STORAGE_KEY = 'plantcare_farms'
 
-export default function FarmsPage({ adminMode = false }) {
+export default function FarmsPage() {
   const { t } = useLanguage()
   const [farms, setFarms] = useState(() => loadCollection(STORAGE_KEY, initialFarms))
   const [editing, setEditing] = useState(null)
@@ -55,7 +55,7 @@ export default function FarmsPage({ adminMode = false }) {
   return (
     <div className="mx-auto max-w-7xl">
       <PageHeader
-        eyebrow={adminMode ? t('farms.eyebrow') : 'Tuần 2 • Farm Management'}
+        eyebrow={t('farms.eyebrow')}
         title={t('farms.title')}
         description={t('farms.desc')}
         action={<button className="btn-primary" onClick={openCreate}><Plus size={18} /> {t('farms.add_btn')}</button>}

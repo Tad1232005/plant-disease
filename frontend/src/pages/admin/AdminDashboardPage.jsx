@@ -5,8 +5,8 @@ import StatusBadge from '../../components/common/StatusBadge.jsx'
 export default function AdminDashboardPage() {
   const services = [
     { name: 'FastAPI Backend', detail: 'http://localhost:8000', status: 'active' },
-    { name: 'SQLite Database', detail: '6 bảng dữ liệu', status: 'active' },
-    { name: 'Model phân loại', detail: 'plant_disease_v1.pt', status: 'active' },
+    { name: 'PostgreSQL', detail: '11 bảng dữ liệu', status: 'active' },
+    { name: 'Model phân loại', detail: 'efficientnet-b0-f-v1 · mobilenet-v2-f-v1 · resnet50-f-v1', status: 'active' },
   ]
 
   return (

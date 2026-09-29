@@ -1,37 +1,28 @@
-﻿import { Activity, Database, LoaderCircle, ScanLine, Sprout, Users } from 'lucide-react'
+﻿import { Activity, Database, ScanLine, Sprout, Users } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import MiniBarChart from '../components/charts/MiniBarChart.jsx'
 import PageHeader from '../components/common/PageHeader.jsx'
 import StatCard from '../components/common/StatCard.jsx'
 import { useLanguage } from '../contexts/LanguageContext.jsx'
-import { adminOverviewDemo } from '../data/demoData.js'
 import { adminStatsApi } from '../services/stats.js'
 
-function normalizeStats(payload) { return payload?.stats || payload?.data || payload }
+function unwrapOverview(payload) { return payload?.stats || payload?.data || payload || {} }
 
 export default function SystemStatsPage() {
   const { t } = useLanguage()
-  const [stats, setStats] = useState(adminOverviewDemo)
-  const [mode, setMode] = useState('loading')
+  const [stats, setStats] = useState({})
+  const [message, setMessage] = useState('')
 
   useEffect(() => {
     let active = true
-    adminStatsApi.overview().then((payload) => {
-      if (active) {
-        setStats(normalizeStats(payload))
-        setMode('api')
-      }
-    }).catch(() => {
-      if (active) {
-        setStats(adminOverviewDemo)
-        setMode('demo')
-      }
-    })
+    adminStatsApi.overview()
+      .then((payload) => { if (active) setStats(unwrapOverview(payload)) })
+      .catch((error) => { if (active) setMessage(error?.response?.data?.detail || 'Không thể tải thống kê hệ thống.') })
     return () => { active = false }
   }, [])
 
   const roles = stats.users_by_role || []
-  const diseases = stats.disease_breakdown || []
+  const diseases = stats.disease_counts || []
   const maxRole = Math.max(...roles.map((item) => Number(item.value || item.count || 0)), 1)
 
   return (
@@ -41,10 +32,7 @@ export default function SystemStatsPage() {
         title={t('system.title')}
         description={t('system.desc')}
       />
-      <div className={`mb-5 flex items-center gap-2 rounded-2xl border p-4 text-sm ${mode === 'api' ? 'border-emerald-100 bg-emerald-50 text-emerald-800' : 'border-amber-100 bg-amber-50 text-amber-800'}`}>
-        {mode === 'loading' && <LoaderCircle className="animate-spin" size={17} />}
-        {mode === 'api' ? t('system.mode_api') : mode === 'demo' ? t('system.mode_demo') : t('system.mode_loading')}
-      </div>
+      {message && <p className="mb-5 rounded-2xl border border-slate-200 bg-white p-4 text-sm text-slate-700 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-200">{t(message)}</p>}
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <StatCard icon={Users} label={t('system.stat_users')} value={stats.total_users || 0} />
         <StatCard icon={ScanLine} label={t('system.stat_scans')} value={stats.total_scans || 0} tone="blue" />
@@ -85,12 +73,12 @@ export default function SystemStatsPage() {
         </section>
       </div>
       <section className="card mt-6 p-5 sm:p-6">
-        <h2 className="text-lg font-extrabold text-slate-900 dark:text-slate-50">Phân bố kết quả chẩn đoán</h2>
+        <h2 className="text-lg font-extrabold text-slate-900 dark:text-slate-50">{t('system.disease_breakdown')}</h2>
         <div className="mt-5 grid gap-4 sm:grid-cols-3">
           {diseases.map((item, index) => (
-            <div key={item.name || item.label} className={`rounded-2xl p-5 ${index === 0 ? 'bg-emerald-50 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300' : index === 1 ? 'bg-amber-50 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300' : 'bg-violet-50 text-violet-800 dark:bg-violet-950/40 dark:text-violet-300'}`}>
-              <p className="text-2xl font-black">{item.value || item.count}</p>
-              <p className="mt-1 text-sm font-semibold">{item.name || item.label}</p>
+            <div key={item.label_key || item.name || item.label} className={`rounded-2xl p-5 ${index === 0 ? 'bg-emerald-50 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300' : index === 1 ? 'bg-amber-50 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300' : 'bg-violet-50 text-violet-800 dark:bg-violet-950/40 dark:text-violet-300'}`}>
+              <p className="text-2xl font-black">{item.count ?? item.value}</p>
+              <p className="mt-1 text-sm font-semibold">{item.label_key || item.name || item.label}</p>
             </div>
           ))}
         </div>
