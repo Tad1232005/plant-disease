@@ -5,7 +5,9 @@ import { useForm } from 'react-hook-form'
 import { Link, Navigate, useNavigate } from 'react-router-dom'
 import { z } from 'zod'
 import Brand from '../../components/common/Brand.jsx'
+import PreferenceControls from '../../components/common/PreferenceControls.jsx'
 import { useAuth } from '../../contexts/AuthContext.jsx'
+import { usePreferences } from '../../contexts/PreferencesContext.jsx'
 import { getHomeForRole } from '../../utils/roles.js'
 
 const schema = z.object({
@@ -19,6 +21,7 @@ const schema = z.object({
 export default function RegisterPage() {
   const [serverError, setServerError] = useState('')
   const { register: createAccount, user, isAuthenticated } = useAuth()
+  const { t } = usePreferences()
   const navigate = useNavigate()
   const { register, handleSubmit, formState: { errors, isSubmitting } } = useForm({ resolver: zodResolver(schema) })
 
@@ -35,29 +38,29 @@ export default function RegisterPage() {
   }
 
   const fields = [
-    { name: 'full_name', label: 'Họ và tên', placeholder: 'Nguyễn Văn An' },
-    { name: 'username', label: 'Tên đăng nhập', placeholder: 'nguyenvanan' },
-    { name: 'email', label: 'Email', placeholder: 'ban@example.com', type: 'email' },
-    { name: 'password', label: 'Mật khẩu', placeholder: 'Tối thiểu 6 ký tự', type: 'password' },
-    { name: 'confirmPassword', label: 'Nhập lại mật khẩu', placeholder: 'Nhập lại mật khẩu', type: 'password' },
+    { name: 'full_name', label: t('register.fullName'), placeholder: t('register.namePlaceholder') },
+    { name: 'username', label: t('login.username'), placeholder: t('register.userPlaceholder') },
+    { name: 'email', label: t('register.email'), placeholder: t('register.emailPlaceholder'), type: 'email' },
+    { name: 'password', label: t('register.password'), placeholder: t('register.passwordPlaceholder'), type: 'password' },
+    { name: 'confirmPassword', label: t('register.confirmPassword'), placeholder: t('register.confirmPassword'), type: 'password' },
   ]
 
   return (
     <div className="min-h-screen bg-hero-glow py-8 sm:py-12">
       <div className="page-container">
-        <div className="mb-8 flex items-center justify-between"><Brand /><Link to="/" className="inline-flex items-center gap-2 text-sm font-semibold text-slate-500 hover:text-leaf-700"><ArrowLeft size={17} /> Trang chủ</Link></div>
+        <div className="mb-8 flex items-center justify-between gap-3"><Brand /><div className="flex items-center gap-2"><PreferenceControls compact /><Link to="/" className="hidden items-center gap-2 text-sm font-semibold text-slate-500 hover:text-leaf-700 sm:inline-flex"><ArrowLeft size={17} />{t('common.home')}</Link></div></div>
         <div className="mx-auto grid max-w-5xl overflow-hidden rounded-[2rem] border border-white bg-white shadow-soft lg:grid-cols-[.9fr_1.1fr]">
           <aside className="bg-leaf-800 p-8 text-white sm:p-10">
-            <p className="text-xs font-bold uppercase tracking-[0.2em] text-leaf-200">Tạo tài khoản</p>
-            <h1 className="mt-4 text-3xl font-black leading-tight">Bắt đầu quản lý sức khỏe cây trồng hôm nay.</h1>
-            <p className="mt-4 text-sm leading-7 text-leaf-100/70">Tài khoản mới mặc định là vai trò Nông dân. Quản trị viên có thể thay đổi vai trò sau.</p>
+            <p className="text-xs font-bold uppercase tracking-[0.2em] text-leaf-200">{t('register.eyebrow')}</p>
+            <h1 className="mt-4 text-3xl font-black leading-tight">{t('register.heroTitle')}</h1>
+            <p className="mt-4 text-sm leading-7 text-leaf-100/70">{t('register.heroText')}</p>
             <div className="mt-8 space-y-4">
-              {['Chẩn đoán ảnh lá cây', 'Lưu lịch sử từng lần quét', 'Quản lý khu vực trồng'].map((item) => <p key={item} className="flex items-center gap-3 text-sm font-semibold text-leaf-50"><CheckCircle2 size={18} className="text-leaf-300" />{item}</p>)}
+              {[t('register.benefit1'), t('register.benefit2'), t('register.benefit3')].map((item) => <p key={item} className="flex items-center gap-3 text-sm font-semibold text-leaf-50"><CheckCircle2 size={18} className="text-leaf-300" />{item}</p>)}
             </div>
           </aside>
           <main className="p-7 sm:p-10">
-            <h2 className="text-2xl font-black text-slate-900">Thông tin tài khoản</h2>
-            <p className="mt-2 text-sm text-slate-500">Điền thông tin để kết nối với API đăng ký của hệ thống.</p>
+            <h2 className="text-2xl font-black text-slate-900">{t('register.title')}</h2>
+            <p className="mt-2 text-sm text-slate-500">{t('register.formText')}</p>
             <form onSubmit={handleSubmit(onSubmit)} className="mt-7 space-y-4" noValidate>
               {fields.map((field) => (
                 <label key={field.name} className="block">
@@ -67,9 +70,9 @@ export default function RegisterPage() {
                 </label>
               ))}
               {serverError && <p className="rounded-xl bg-rose-50 px-4 py-3 text-sm text-rose-700">{serverError}</p>}
-              <button className="btn-primary mt-2 w-full !py-3.5" disabled={isSubmitting}>{isSubmitting ? 'Đang tạo tài khoản...' : 'Tạo tài khoản'} <ArrowRight size={17} /></button>
+              <button className="btn-primary mt-2 w-full !py-3.5" disabled={isSubmitting}>{isSubmitting ? t('register.submitting') : t('register.submit')} <ArrowRight size={17} /></button>
             </form>
-            <p className="mt-6 text-center text-sm text-slate-500">Đã có tài khoản? <Link to="/login" className="font-bold text-leaf-700">Đăng nhập</Link></p>
+            <p className="mt-6 text-center text-sm text-slate-500">{t('register.hasAccount')} <Link to="/login" className="font-bold text-leaf-700">{t('common.login')}</Link></p>
           </main>
         </div>
       </div>

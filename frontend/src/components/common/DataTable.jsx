@@ -1,5 +1,6 @@
 import { ChevronDown, ChevronLeft, ChevronRight, ChevronsUpDown, Search } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
+import { usePreferences } from '../../contexts/PreferencesContext.jsx'
 
 function getCellValue(row, key) {
   return key.split('.').reduce((value, part) => value?.[part], row)
@@ -9,23 +10,27 @@ export default function DataTable({
   columns,
   data,
   rowKey = 'id',
-  searchPlaceholder = 'Tìm kiếm...',
+  searchPlaceholder,
   searchable = true,
   pageSize = 6,
   actions,
-  emptyTitle = 'Chưa có dữ liệu',
-  emptyDescription = 'Dữ liệu mới sẽ xuất hiện tại đây.',
+  emptyTitle,
+  emptyDescription,
 }) {
+  const { language, t } = usePreferences()
+  const resolvedSearchPlaceholder = searchPlaceholder || t('common.search')
+  const resolvedEmptyTitle = emptyTitle || t('common.noData')
+  const resolvedEmptyDescription = emptyDescription || t('common.noDataText')
   const [query, setQuery] = useState('')
   const [sort, setSort] = useState({ key: '', direction: 'asc' })
   const [page, setPage] = useState(1)
 
   const filteredRows = useMemo(() => {
-    const normalizedQuery = query.trim().toLocaleLowerCase('vi')
+    const normalizedQuery = query.trim().toLocaleLowerCase(language)
     const rows = normalizedQuery
       ? data.filter((row) => columns.some((column) => {
           if (column.searchable === false) return false
-          return String(getCellValue(row, column.key) ?? '').toLocaleLowerCase('vi').includes(normalizedQuery)
+          return String(getCellValue(row, column.key) ?? '').toLocaleLowerCase(language).includes(normalizedQuery)
         }))
       : data
 
@@ -33,10 +38,10 @@ export default function DataTable({
     return [...rows].sort((a, b) => {
       const left = getCellValue(a, sort.key)
       const right = getCellValue(b, sort.key)
-      const result = String(left ?? '').localeCompare(String(right ?? ''), 'vi', { numeric: true })
+      const result = String(left ?? '').localeCompare(String(right ?? ''), language, { numeric: true })
       return sort.direction === 'asc' ? result : -result
     })
-  }, [columns, data, query, sort])
+  }, [columns, data, language, query, sort])
 
   const totalPages = Math.max(1, Math.ceil(filteredRows.length / pageSize))
   const visibleRows = filteredRows.slice((page - 1) * pageSize, page * pageSize)
@@ -62,11 +67,11 @@ export default function DataTable({
               value={query}
               onChange={(event) => { setQuery(event.target.value); setPage(1) }}
               className="input-control pl-10"
-              placeholder={searchPlaceholder}
-              aria-label={searchPlaceholder}
+              placeholder={resolvedSearchPlaceholder}
+              aria-label={resolvedSearchPlaceholder}
             />
           </label>
-          <span className="ml-4 hidden text-sm text-slate-400 sm:block">{filteredRows.length} kết quả</span>
+          <span className="ml-4 hidden text-sm text-slate-400 sm:block">{filteredRows.length} {t('common.results')}</span>
         </div>
       )}
 
@@ -84,7 +89,7 @@ export default function DataTable({
                   ) : column.label}
                 </th>
               ))}
-              {actions && <th className="px-5 py-3.5 text-right text-xs font-bold uppercase tracking-wider text-slate-500">Thao tác</th>}
+              {actions && <th className="px-5 py-3.5 text-right text-xs font-bold uppercase tracking-wider text-slate-500">{t('common.actions')}</th>}
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
@@ -108,21 +113,21 @@ export default function DataTable({
       {!visibleRows.length && (
         <div className="px-5 py-16 text-center">
           <div className="mx-auto mb-4 grid h-14 w-14 place-items-center rounded-2xl bg-slate-100 text-2xl">🌱</div>
-          <p className="font-bold text-slate-800">{emptyTitle}</p>
-          <p className="mt-1 text-sm text-slate-500">{emptyDescription}</p>
+          <p className="font-bold text-slate-800">{resolvedEmptyTitle}</p>
+          <p className="mt-1 text-sm text-slate-500">{resolvedEmptyDescription}</p>
         </div>
       )}
 
       {filteredRows.length > 0 && (
         <div className="flex items-center justify-between border-t border-slate-100 px-4 py-3 sm:px-5">
           <p className="text-xs text-slate-500">
-            Trang <strong className="text-slate-700">{page}</strong> / {totalPages}
+            {t('common.page')} <strong className="text-slate-700">{page}</strong> / {totalPages}
           </p>
           <div className="flex gap-2">
-            <button className="btn-secondary !p-2" disabled={page === 1} onClick={() => setPage((value) => value - 1)} aria-label="Trang trước">
+            <button className="btn-secondary !p-2" disabled={page === 1} onClick={() => setPage((value) => value - 1)} aria-label={t('common.previous')}>
               <ChevronLeft size={17} />
             </button>
-            <button className="btn-secondary !p-2" disabled={page === totalPages} onClick={() => setPage((value) => value + 1)} aria-label="Trang sau">
+            <button className="btn-secondary !p-2" disabled={page === totalPages} onClick={() => setPage((value) => value + 1)} aria-label={t('common.next')}>
               <ChevronRight size={17} />
             </button>
           </div>

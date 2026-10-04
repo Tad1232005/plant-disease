@@ -2,28 +2,31 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { useEffect, useMemo } from 'react'
 import { useForm } from 'react-hook-form'
 import { z } from 'zod'
+import { usePreferences } from '../../contexts/PreferencesContext.jsx'
 
-function createSchema(fields) {
+function createSchema(fields, language) {
   const shape = {}
   fields.forEach((field) => {
     if (field.type === 'number') {
-      let rule = z.coerce.number({ invalid_type_error: `${field.label} phải là số` })
-      if (field.min !== undefined) rule = rule.min(field.min, `${field.label} phải từ ${field.min}`)
+      let rule = z.coerce.number({ invalid_type_error: language === 'vi' ? `${field.label} phải là số` : `${field.label} must be a number` })
+      if (field.min !== undefined) rule = rule.min(field.min, language === 'vi' ? `${field.label} phải từ ${field.min}` : `${field.label} must be at least ${field.min}`)
       shape[field.name] = rule
       return
     }
 
     let rule = z.string()
-    if (field.required !== false) rule = rule.trim().min(1, `Vui lòng nhập ${field.label.toLowerCase()}`)
-    if (field.minLength) rule = rule.min(field.minLength, `${field.label} cần ít nhất ${field.minLength} ký tự`)
-    if (field.type === 'email') rule = rule.email('Email chưa đúng định dạng')
+    if (field.required !== false) rule = rule.trim().min(1, language === 'vi' ? `Vui lòng nhập ${field.label.toLowerCase()}` : `Enter ${field.label.toLowerCase()}`)
+    if (field.minLength) rule = rule.min(field.minLength, language === 'vi' ? `${field.label} cần ít nhất ${field.minLength} ký tự` : `${field.label} must have at least ${field.minLength} characters`)
+    if (field.type === 'email') rule = rule.email(language === 'vi' ? 'Email chưa đúng định dạng' : 'Enter a valid email address')
     shape[field.name] = rule
   })
   return z.object(shape)
 }
 
-export default function CrudForm({ fields, defaultValues = {}, onSubmit, onCancel, submitLabel = 'Lưu thay đổi', loading = false }) {
-  const schema = useMemo(() => createSchema(fields), [fields])
+export default function CrudForm({ fields, defaultValues = {}, onSubmit, onCancel, submitLabel, loading = false }) {
+  const { language, t } = usePreferences()
+  const resolvedSubmitLabel = submitLabel || t('common.save')
+  const schema = useMemo(() => createSchema(fields, language), [fields, language])
   const initialValues = useMemo(
     () => Object.fromEntries(fields.map((field) => [field.name, defaultValues[field.name] ?? field.defaultValue ?? ''])),
     [defaultValues, fields],
@@ -47,7 +50,7 @@ export default function CrudForm({ fields, defaultValues = {}, onSubmit, onCance
               <textarea rows={field.rows || 4} className="input-control resize-y" placeholder={field.placeholder} {...register(field.name)} />
             ) : field.type === 'select' ? (
               <select className="input-control" {...register(field.name)}>
-                <option value="">-- Chọn {field.label.toLowerCase()} --</option>
+                <option value="">-- {t('common.select')} {field.label.toLowerCase()} --</option>
                 {field.options?.map((option) => (
                   <option key={option.value} value={option.value}>{option.label}</option>
                 ))}
@@ -68,8 +71,8 @@ export default function CrudForm({ fields, defaultValues = {}, onSubmit, onCance
         ))}
       </div>
       <div className="flex justify-end gap-3 border-t border-slate-100 pt-5">
-        {onCancel && <button type="button" className="btn-secondary" onClick={onCancel}>Hủy</button>}
-        <button type="submit" className="btn-primary" disabled={loading}>{loading ? 'Đang lưu...' : submitLabel}</button>
+        {onCancel && <button type="button" className="btn-secondary" onClick={onCancel}>{t('common.cancel')}</button>}
+        <button type="submit" className="btn-primary" disabled={loading}>{loading ? t('common.saving') : resolvedSubmitLabel}</button>
       </div>
     </form>
   )
