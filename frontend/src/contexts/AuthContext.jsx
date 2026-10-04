@@ -12,7 +12,8 @@ const AuthContext = createContext(null)
 function getSavedUser() {
   try {
     const value = localStorage.getItem(USER_KEY)
-    return value ? JSON.parse(value) : null
+    const savedUser = value ? JSON.parse(value) : null
+    return savedUser?.role === 'admin' ? null : savedUser
   } catch {
     return null
   }
@@ -42,7 +43,13 @@ export function AuthProvider({ children }) {
     }
 
     authApi.me()
-      .then((profile) => saveSession(profile, token))
+      .then((profile) => {
+        if (profile.role === 'admin') {
+          logout()
+          return
+        }
+        saveSession(profile, token)
+      })
       .catch((error) => {
         if (error?.response?.status === 401) logout()
       })
@@ -64,9 +71,16 @@ export function AuthProvider({ children }) {
       const tokenData = await authApi.login(credentials)
       localStorage.setItem(TOKEN_KEY, tokenData.access_token)
       const profile = await authApi.me()
+      if (profile.role === 'admin') {
+        logout()
+        const adminError = new Error('Tài khoản quản trị phải đăng nhập tại Admin Panel.')
+        adminError.code = 'ADMIN_ACCOUNT'
+        throw adminError
+      }
       saveSession(profile, tokenData.access_token)
       return profile
     } catch (error) {
+      if (error.code === 'ADMIN_ACCOUNT') throw error
       throw new Error(getApiError(error, 'Tên đăng nhập hoặc mật khẩu không đúng.'))
     }
   }
