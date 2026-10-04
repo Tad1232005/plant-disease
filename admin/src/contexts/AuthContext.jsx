@@ -1,11 +1,9 @@
 import { createContext, useContext, useEffect, useMemo, useState } from 'react'
-import { demoUsers } from '../data/demoData.js'
 import { authApi } from '../services/auth.js'
 import { getApiError } from '../services/client.js'
 
 const TOKEN_KEY = 'plantcare_admin_access_token'
 const USER_KEY = 'plantcare_admin_user'
-const DEMO_TOKEN = 'plantcare_admin_demo_session'
 const AuthContext = createContext(null)
 
 function getSavedAdmin() {
@@ -36,7 +34,7 @@ export function AuthProvider({ children }) {
 
   useEffect(() => {
     const token = localStorage.getItem(TOKEN_KEY)
-    if (!token || token === DEMO_TOKEN) {
+    if (!token) {
       setInitializing(false)
       return
     }
@@ -51,13 +49,6 @@ export function AuthProvider({ children }) {
   }, [])
 
   async function login(credentials) {
-    const demoAdmin = demoUsers.admin
-    if (credentials.username === demoAdmin.username && credentials.password === demoAdmin.password) {
-      const { password: _, ...safeAdmin } = demoAdmin
-      saveSession(safeAdmin, DEMO_TOKEN)
-      return safeAdmin
-    }
-
     try {
       const tokenData = await authApi.login(credentials)
       localStorage.setItem(TOKEN_KEY, tokenData.access_token)

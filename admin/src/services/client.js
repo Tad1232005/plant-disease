@@ -13,7 +13,7 @@ export const apiClient = axios.create({
 
 apiClient.interceptors.request.use((config) => {
   const token = localStorage.getItem('plantcare_admin_access_token')
-  if (token && token !== 'plantcare_admin_demo_session') {
+  if (token) {
     config.headers.Authorization = `Bearer ${token}`
   }
   return config

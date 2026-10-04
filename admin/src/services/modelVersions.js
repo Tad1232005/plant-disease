@@ -9,6 +9,7 @@ import { apiClient } from './client.js'
  */
 export const modelVersionsApi = {
   list: async (params) => (await apiClient.get('/admin/model-versions', { params })).data,
+  get: async (id) => (await apiClient.get(`/admin/model-versions/${id}`)).data,
   register: async (payload) => (await apiClient.post('/admin/model-versions', payload)).data,
   activate: async (id) => (await apiClient.post(`/admin/model-versions/${id}/activate`)).data,
 }

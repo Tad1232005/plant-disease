@@ -8,14 +8,14 @@ import PageHeader from '../components/common/PageHeader.jsx'
 import StatCard from '../components/common/StatCard.jsx'
 import StatusBadge from '../components/common/StatusBadge.jsx'
 import { useLanguage } from '../contexts/LanguageContext.jsx'
-import { initialFarms } from '../data/demoData.js'
 import { loadCollection, saveCollection } from '../utils/storage.js'
 
-const STORAGE_KEY = 'plantcare_farms'
+// Key riêng của admin: tách khỏi localStorage app người dùng và không nạp dữ liệu seed cũ.
+const STORAGE_KEY = 'plantcare_admin_farms'
 
 export default function FarmsPage() {
   const { t } = useLanguage()
-  const [farms, setFarms] = useState(() => loadCollection(STORAGE_KEY, initialFarms))
+  const [farms, setFarms] = useState(() => loadCollection(STORAGE_KEY, []))
   const [editing, setEditing] = useState(null)
   const [formOpen, setFormOpen] = useState(false)
   const [deleting, setDeleting] = useState(null)

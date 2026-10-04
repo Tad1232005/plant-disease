@@ -13,6 +13,19 @@ function emptyStringToUndefined(value) {
   return Number(value)
 }
 
+/**
+ * Chuỗi rỗng/null → undefined cho field optional kiểu chuỗi (email).
+ * KHÔNG được dùng `emptyStringToUndefined` ở đây: Number("user@gmail.com") = NaN
+ * làm zod báo "Expected string, received nan" dù người dùng nhập đúng.
+ */
+function emptyStringToBlankUndefined(value) {
+  if (value === '' || value === null || value === undefined) return undefined
+  return value
+}
+
+// Cùng rule với BE (_ProvisionUserRequest.validate_password_strength): chữ hoa, chữ thường và chữ số.
+const PASSWORD_STRENGTH = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/
+
 function createSchema(fields) {
   const shape = {}
   fields.forEach((field) => {
@@ -32,10 +45,18 @@ function createSchema(fields) {
       return
     }
 
+    // Email tuỳ chọn: bỏ trống thì bỏ qua kiểm tra định dạng (giữ hành vi cũ cho email bắt buộc).
     let rule = z.string()
     if (field.required !== false) rule = rule.trim().min(1, `Vui lòng nhập ${field.label.toLowerCase()}`)
+    else if (field.type === 'email') {
+      shape[field.name] = z.preprocess(emptyStringToBlankUndefined, z.string().email('Email chưa đúng định dạng').optional())
+      return
+    }
     if (field.minLength) rule = rule.min(field.minLength, `${field.label} cần ít nhất ${field.minLength} ký tự`)
     if (field.type === 'email') rule = rule.email('Email chưa đúng định dạng')
+    if (field.type === 'password' && field.required !== false) {
+      rule = rule.regex(PASSWORD_STRENGTH, `${field.label} cần có chữ hoa, chữ thường và chữ số`)
+    }
     shape[field.name] = rule
   })
   return z.object(shape)
@@ -64,9 +85,9 @@ export default function CrudForm({ fields, defaultValues = {}, onSubmit, onCance
               {t(field.label)} {field.required !== false && <span className="text-rose-500">*</span>}
             </span>
             {field.type === 'textarea' ? (
-              <textarea rows={field.rows || 4} className="input-control resize-y" placeholder={field.placeholder ? t(field.placeholder) : undefined} {...register(field.name)} />
+              <textarea rows={field.rows || 4} className="input-control resize-y" placeholder={field.placeholder ? t(field.placeholder) : undefined} disabled={field.disabled} {...register(field.name)} />
             ) : field.type === 'select' ? (
-              <select className="input-control" {...register(field.name)}>
+              <select className="input-control" disabled={field.disabled} {...register(field.name)}>
                 <option value="">{t('common.select_placeholder', { field: t(field.label) })}</option>
                 {field.options?.map((option) => (
                   <option key={option.value} value={option.value}>{t(option.label)}</option>
@@ -79,6 +100,7 @@ export default function CrudForm({ fields, defaultValues = {}, onSubmit, onCance
                 step={field.step}
                 className="input-control"
                 placeholder={field.placeholder ? t(field.placeholder) : undefined}
+                disabled={field.disabled}
                 {...register(field.name)}
               />
             )}
