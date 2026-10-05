@@ -8,17 +8,46 @@ import PageHeader from '../components/common/PageHeader.jsx'
 import StatCard from '../components/common/StatCard.jsx'
 import StatusBadge from '../components/common/StatusBadge.jsx'
 import { useLanguage } from '../contexts/LanguageContext.jsx'
+import { initialFarms } from '../data/demoData.js'
+import { adminFarmsApi } from '../services/farms.js'
 import { loadCollection, saveCollection } from '../utils/storage.js'
 
 // Key riêng của admin: tách khỏi localStorage app người dùng và không nạp dữ liệu seed cũ.
 const STORAGE_KEY = 'plantcare_admin_farms'
 
+function normalizeFarm(farm) {
+  return {
+    ...farm,
+    location: farm.location_text || farm.location || 'Chưa cập nhật',
+    crop: farm.crop || 'Cà chua / Đa canh',
+    area: farm.area || 1.5,
+    status: farm.status || 'healthy',
+    lastScan: farm.lastScan || 'Hôm nay',
+  }
+}
+
 export default function FarmsPage() {
   const { t } = useLanguage()
   const [farms, setFarms] = useState(() => loadCollection(STORAGE_KEY, []))
+  const [farms, setFarms] = useState(() => loadCollection(STORAGE_KEY, initialFarms).map(normalizeFarm))
   const [editing, setEditing] = useState(null)
   const [formOpen, setFormOpen] = useState(false)
   const [deleting, setDeleting] = useState(null)
+
+  useEffect(() => {
+    let active = true
+    adminFarmsApi.list()
+      .then((data) => {
+        if (!active || !Array.isArray(data)) return
+        if (data.length > 0) {
+          const mapped = data.map(normalizeFarm)
+          setFarms(mapped)
+          saveCollection(STORAGE_KEY, mapped)
+        }
+      })
+      .catch(() => {})
+    return () => { active = false }
+  }, [])
 
   useEffect(() => saveCollection(STORAGE_KEY, farms), [farms])
 
@@ -34,15 +63,36 @@ export default function FarmsPage() {
 
   function openCreate() { setEditing(null); setFormOpen(true) }
   function openEdit(farm) { setEditing(farm); setFormOpen(true) }
-  function saveFarm(values) {
+
+  async function saveFarm(values) {
     if (editing) {
-      setFarms((items) => items.map((item) => item.id === editing.id ? { ...item, ...values } : item))
+      try {
+        const res = await adminFarmsApi.update(editing.id, { name: values.name, location_text: values.location })
+        const updated = normalizeFarm({ ...editing, ...values, ...res })
+        setFarms((items) => items.map((item) => item.id === editing.id ? updated : item))
+      } catch {
+        setFarms((items) => items.map((item) => item.id === editing.id ? { ...item, ...values } : item))
+      }
     } else {
-      setFarms((items) => [{ ...values, id: Date.now(), lastScan: t('farms.not_scanned') }, ...items])
+      try {
+        const res = await adminFarmsApi.create({ name: values.name, location_text: values.location })
+        const created = normalizeFarm({ ...values, ...res, lastScan: t('farms.not_scanned') })
+        setFarms((items) => [created, ...items])
+      } catch {
+        setFarms((items) => [{ ...values, id: Date.now(), lastScan: t('farms.not_scanned') }, ...items])
+      }
     }
     setFormOpen(false)
   }
-  function deleteFarm() { setFarms((items) => items.filter((item) => item.id !== deleting.id)); setDeleting(null) }
+
+  async function deleteFarm() {
+    if (!deleting) return
+    try {
+      await adminFarmsApi.remove(deleting.id)
+    } catch {}
+    setFarms((items) => items.filter((item) => item.id !== deleting.id))
+    setDeleting(null)
+  }
 
   const columns = [
     { key: 'name', label: t('farms.col_name'), sortable: true, render: (value, row) => <div><p className="font-bold text-slate-800 dark:text-slate-100">{value}</p><p className="mt-1 inline-flex items-center gap-1 text-xs text-slate-400 dark:text-slate-500"><MapPin size={12} />{row.location}</p></div> },

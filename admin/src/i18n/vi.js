@@ -7,6 +7,8 @@ export const vi = {
     proposals: 'Duyệt đề xuất bệnh',
     models: 'Phiên bản mô hình',
     system: 'Theo dõi hệ thống',
+    audit: 'Nhật ký kiểm toán',
+    profile: 'Hồ sơ quản trị',
     badge_admin: 'Ứng dụng quản trị độc lập',
     logout: 'Đăng xuất',
     logout_confirm_title: 'Xác nhận đăng xuất',

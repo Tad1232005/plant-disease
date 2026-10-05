@@ -136,3 +136,79 @@ def test_role_boundaries_for_user_management(
     assert client.get(
         "/api/v1/manager/users", headers=user_headers
     ).status_code == 403
+
+def test_manager_can_suspend_and_activate_own_user(client, manager_headers):
+    created = client.post(
+        "/api/v1/manager/users",
+        json=user_payload("user_to_suspend"),
+        headers=manager_headers,
+    ).json()
+    user_id = created["id"]
+
+    # Suspend
+    res = client.patch(
+        f"/api/v1/manager/users/{user_id}/status",
+        json={"status": "suspended", "reason": "Tạm đình chỉ vụ mùa"},
+        headers=manager_headers,
+    )
+    assert res.status_code == 200
+    assert res.json()["status"] == "suspended"
+
+    # Activate lại
+    res2 = client.patch(
+        f"/api/v1/manager/users/{user_id}/status",
+        json={"status": "active", "reason": "Bắt đầu vụ mùa mới"},
+        headers=manager_headers,
+    )
+    assert res2.status_code == 200
+    assert res2.json()["status"] == "active"
+
+
+def test_manager_can_reset_password_for_own_user(client, manager_headers):
+    created = client.post(
+        "/api/v1/manager/users",
+        json=user_payload("user_to_reset_pw"),
+        headers=manager_headers,
+    ).json()
+    user_id = created["id"]
+
+    res = client.post(
+        f"/api/v1/manager/users/{user_id}/reset-password",
+        json={"new_password": "NewSecretPass456!"},
+        headers=manager_headers,
+    )
+    assert res.status_code == 200
+
+    # Đăng nhập bằng mật khẩu mới
+    login_res = client.post(
+        "/api/v1/auth/login",
+        json={"username": "user_to_reset_pw", "password": "NewSecretPass456!"},
+    )
+    assert login_res.status_code == 200
+
+
+def test_manager_cannot_manage_other_managers_user(client, manager_headers, other_manager_user, token_headers):
+    other_headers = token_headers(other_manager_user)
+    created = client.post(
+        "/api/v1/manager/users",
+        json=user_payload("other_manager_sub_user"),
+        headers=other_headers,
+    ).json()
+    other_user_id = created["id"]
+
+    # Manager 1 cố gắng suspend user của Manager 2 -> 403 Forbidden
+    res = client.patch(
+        f"/api/v1/manager/users/{other_user_id}/status",
+        json={"status": "suspended", "reason": "Hack status"},
+        headers=manager_headers,
+    )
+    assert res.status_code == 403
+
+    # Manager 1 cố gắng reset pass user của Manager 2 -> 403 Forbidden
+    res_pw = client.post(
+        f"/api/v1/manager/users/{other_user_id}/reset-password",
+        json={"new_password": "HackPassword123!"},
+        headers=manager_headers,
+    )
+    assert res_pw.status_code == 403
+

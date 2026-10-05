@@ -144,3 +144,52 @@ def get_user_for_manager(db: Session, manager_id: int, user_id: int) -> User:
     if user is None or user.created_by != manager_id:
         raise HTTPException(status_code=404, detail="Không tìm thấy tài khoản")
     return user
+
+def set_managed_user_status(db: Session, *, manager: User, user_id: int, data: UserStatusRequest) -> User:
+    """Manager tạm khóa hoặc mở khóa tài khoản Nông dân do chính mình tạo."""
+    manager = lock_active_actor(db, manager, {"manager"})
+    target = user_crud.get_user_by_id(db, user_id)
+    if target is None:
+        raise HTTPException(status_code=404, detail="Không tìm thấy tài khoản")
+    if target.created_by != manager.id or target.role != "user":
+        raise HTTPException(status_code=403, detail="Chỉ được quản lý tài khoản Nông dân do chính mình tạo")
+    if target.status == data.status:
+        return target
+    previous = target.status
+    target.status = data.status
+    target.token_version += 1
+    audit_user_status_changed(
+        db,
+        actor_id=manager.id,
+        target_id=target.id,
+        from_status=previous,
+        to_status=data.status,
+        reason=data.reason,
+    )
+    db.commit()
+    db.refresh(target)
+    return target
+
+
+def reset_managed_user_password(db: Session, *, manager: User, user_id: int, new_password: str) -> User:
+    """Manager đặt lại mật khẩu cho Nông dân do chính mình tạo."""
+    manager = lock_active_actor(db, manager, {"manager"})
+    target = user_crud.get_user_by_id(db, user_id)
+    if target is None:
+        raise HTTPException(status_code=404, detail="Không tìm thấy tài khoản")
+    if target.created_by != manager.id or target.role != "user":
+        raise HTTPException(status_code=403, detail="Chỉ được đặt lại mật khẩu cho Nông dân do chính mình tạo")
+    target.password_hash = hash_password(new_password)
+    target.token_version += 1
+    record_event(
+        db,
+        actor_id=manager.id,
+        action="user.password_reset_by_manager",
+        resource_type="user",
+        resource_id=target.id,
+        details={"actor_role": "manager", "target_username": target.username},
+    )
+    db.commit()
+    db.refresh(target)
+    return target
+

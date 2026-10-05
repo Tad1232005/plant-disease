@@ -1,31 +1,54 @@
-import { ChevronDown, ChevronLeft, ChevronRight, ChevronsUpDown, Search } from 'lucide-react'
+import { ChevronDown, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, ChevronsUpDown, Search } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
+import { usePreferences } from '../../contexts/PreferencesContext.jsx'
 
 function getCellValue(row, key) {
   return key.split('.').reduce((value, part) => value?.[part], row)
+}
+
+function getPageNumbers(currentPage, totalPages) {
+  if (totalPages <= 7) {
+    return Array.from({ length: totalPages }, (_, i) => i + 1)
+  }
+  const pages = [1]
+  if (currentPage > 3) pages.push('...')
+  const start = Math.max(2, currentPage - 1)
+  const end = Math.min(totalPages - 1, currentPage + 1)
+  for (let i = start; i <= end; i++) {
+    pages.push(i)
+  }
+  if (currentPage < totalPages - 2) pages.push('...')
+  pages.push(totalPages)
+  return pages
 }
 
 export default function DataTable({
   columns,
   data,
   rowKey = 'id',
-  searchPlaceholder = 'Tìm kiếm...',
+  searchPlaceholder,
   searchable = true,
-  pageSize = 6,
+  pageSize = 10,
+  pageSizeOptions = [5, 10, 25, 50],
   actions,
-  emptyTitle = 'Chưa có dữ liệu',
-  emptyDescription = 'Dữ liệu mới sẽ xuất hiện tại đây.',
+  emptyTitle,
+  emptyDescription,
 }) {
+  const { language, t } = usePreferences()
+  const resolvedSearchPlaceholder = searchPlaceholder || t('common.search')
+  const resolvedEmptyTitle = emptyTitle || t('common.noData')
+  const resolvedEmptyDescription = emptyDescription || t('common.noDataText')
   const [query, setQuery] = useState('')
   const [sort, setSort] = useState({ key: '', direction: 'asc' })
   const [page, setPage] = useState(1)
+  const [currentPageSize, setCurrentPageSize] = useState(pageSize)
 
   const filteredRows = useMemo(() => {
-    const normalizedQuery = query.trim().toLocaleLowerCase('vi')
+    const normalizedQuery = query.trim().toLocaleLowerCase(language)
     const rows = normalizedQuery
       ? data.filter((row) => columns.some((column) => {
           if (column.searchable === false) return false
-          return String(getCellValue(row, column.key) ?? '').toLocaleLowerCase('vi').includes(normalizedQuery)
+          return String(getCellValue(row, column.key) ?? '').toLocaleLowerCase(language).includes(normalizedQuery)
         }))
       : data
 
@@ -33,13 +56,15 @@ export default function DataTable({
     return [...rows].sort((a, b) => {
       const left = getCellValue(a, sort.key)
       const right = getCellValue(b, sort.key)
-      const result = String(left ?? '').localeCompare(String(right ?? ''), 'vi', { numeric: true })
+      const result = String(left ?? '').localeCompare(String(right ?? ''), language, { numeric: true })
       return sort.direction === 'asc' ? result : -result
     })
-  }, [columns, data, query, sort])
+  }, [columns, data, language, query, sort])
 
-  const totalPages = Math.max(1, Math.ceil(filteredRows.length / pageSize))
-  const visibleRows = filteredRows.slice((page - 1) * pageSize, page * pageSize)
+  const totalPages = Math.max(1, Math.ceil(filteredRows.length / currentPageSize))
+  const startIndex = (page - 1) * currentPageSize
+  const endIndex = Math.min(startIndex + currentPageSize, filteredRows.length)
+  const visibleRows = filteredRows.slice(startIndex, endIndex)
 
   useEffect(() => {
     if (page > totalPages) setPage(totalPages)
@@ -52,21 +77,44 @@ export default function DataTable({
       : { key, direction: 'asc' })
   }
 
+  const pageNumbers = getPageNumbers(page, totalPages)
+
   return (
     <div className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-soft">
       {searchable && (
-        <div className="flex items-center justify-between border-b border-slate-100 p-4 sm:p-5">
+        <div className="flex flex-col gap-3 border-b border-slate-100 p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5">
           <label className="relative w-full max-w-sm">
             <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
             <input
               value={query}
               onChange={(event) => { setQuery(event.target.value); setPage(1) }}
               className="input-control pl-10"
-              placeholder={searchPlaceholder}
-              aria-label={searchPlaceholder}
+              placeholder={resolvedSearchPlaceholder}
+              aria-label={resolvedSearchPlaceholder}
             />
           </label>
-          <span className="ml-4 hidden text-sm text-slate-400 sm:block">{filteredRows.length} kết quả</span>
+          <div className="flex items-center gap-3 self-end sm:self-auto">
+            <span className="text-xs text-slate-500">
+              {language === 'vi' ? 'Hiển thị:' : 'Show:'}
+            </span>
+            <select
+              value={currentPageSize}
+              onChange={(e) => {
+                setCurrentPageSize(Number(e.target.value))
+                setPage(1)
+              }}
+              className="rounded-xl border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-semibold text-slate-700 outline-none transition focus:border-leaf-500"
+            >
+              {pageSizeOptions.map((opt) => (
+                <option key={opt} value={opt}>
+                  {opt} {language === 'vi' ? 'dòng' : 'rows'}
+                </option>
+              ))}
+            </select>
+            <span className="hidden text-xs text-slate-400 sm:inline">
+              ({filteredRows.length} {t('common.results')})
+            </span>
+          </div>
         </div>
       )}
 
@@ -84,7 +132,7 @@ export default function DataTable({
                   ) : column.label}
                 </th>
               ))}
-              {actions && <th className="px-5 py-3.5 text-right text-xs font-bold uppercase tracking-wider text-slate-500">Thao tác</th>}
+              {actions && <th className="px-5 py-3.5 text-right text-xs font-bold uppercase tracking-wider text-slate-500">{t('common.actions')}</th>}
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
@@ -108,22 +156,87 @@ export default function DataTable({
       {!visibleRows.length && (
         <div className="px-5 py-16 text-center">
           <div className="mx-auto mb-4 grid h-14 w-14 place-items-center rounded-2xl bg-slate-100 text-2xl">🌱</div>
-          <p className="font-bold text-slate-800">{emptyTitle}</p>
-          <p className="mt-1 text-sm text-slate-500">{emptyDescription}</p>
+          <p className="font-bold text-slate-800">{resolvedEmptyTitle}</p>
+          <p className="mt-1 text-sm text-slate-500">{resolvedEmptyDescription}</p>
         </div>
       )}
 
       {filteredRows.length > 0 && (
-        <div className="flex items-center justify-between border-t border-slate-100 px-4 py-3 sm:px-5">
+        <div className="flex flex-col gap-3 border-t border-slate-100 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-5">
           <p className="text-xs text-slate-500">
-            Trang <strong className="text-slate-700">{page}</strong> / {totalPages}
+            {language === 'vi' ? (
+              <>
+                Hiển thị <strong className="text-slate-700">{filteredRows.length > 0 ? startIndex + 1 : 0} – {endIndex}</strong> trên <strong className="text-slate-700">{filteredRows.length}</strong> bản ghi
+              </>
+            ) : (
+              <>
+                Showing <strong className="text-slate-700">{filteredRows.length > 0 ? startIndex + 1 : 0} – {endIndex}</strong> of <strong className="text-slate-700">{filteredRows.length}</strong> items
+              </>
+            )}
           </p>
-          <div className="flex gap-2">
-            <button className="btn-secondary !p-2" disabled={page === 1} onClick={() => setPage((value) => value - 1)} aria-label="Trang trước">
-              <ChevronLeft size={17} />
+
+          <div className="flex items-center gap-1.5 self-end sm:self-auto">
+            {/* Nút Về đầu */}
+            <button
+              className="rounded-lg p-1.5 text-slate-500 transition hover:bg-slate-100 hover:text-slate-800 disabled:opacity-30 disabled:hover:bg-transparent"
+              disabled={page === 1}
+              onClick={() => setPage(1)}
+              title={language === 'vi' ? 'Trang đầu' : 'First page'}
+            >
+              <ChevronsLeft size={16} />
             </button>
-            <button className="btn-secondary !p-2" disabled={page === totalPages} onClick={() => setPage((value) => value + 1)} aria-label="Trang sau">
-              <ChevronRight size={17} />
+
+            {/* Nút Lùi 1 trang */}
+            <button
+              className="rounded-lg p-1.5 text-slate-500 transition hover:bg-slate-100 hover:text-slate-800 disabled:opacity-30 disabled:hover:bg-transparent"
+              disabled={page === 1}
+              onClick={() => setPage((v) => Math.max(1, v - 1))}
+              title={language === 'vi' ? 'Trang trước' : 'Previous page'}
+            >
+              <ChevronLeft size={16} />
+            </button>
+
+            {/* Dải số trang */}
+            <div className="flex items-center gap-1">
+              {pageNumbers.map((p, idx) => {
+                if (p === '...') {
+                  return <span key={`ellipsis-${idx}`} className="px-1 text-xs text-slate-400">...</span>
+                }
+                const isActive = p === page
+                return (
+                  <button
+                    key={`page-${p}`}
+                    onClick={() => setPage(p)}
+                    className={`h-7 min-w-7 rounded-lg px-1.5 text-xs font-bold transition ${
+                      isActive
+                        ? 'bg-leaf-600 text-white shadow-sm'
+                        : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+                    }`}
+                  >
+                    {p}
+                  </button>
+                )
+              })}
+            </div>
+
+            {/* Nút Tiến 1 trang */}
+            <button
+              className="rounded-lg p-1.5 text-slate-500 transition hover:bg-slate-100 hover:text-slate-800 disabled:opacity-30 disabled:hover:bg-transparent"
+              disabled={page === totalPages}
+              onClick={() => setPage((v) => Math.min(totalPages, v + 1))}
+              title={language === 'vi' ? 'Trang sau' : 'Next page'}
+            >
+              <ChevronRight size={16} />
+            </button>
+
+            {/* Nút Tới trang cuối */}
+            <button
+              className="rounded-lg p-1.5 text-slate-500 transition hover:bg-slate-100 hover:text-slate-800 disabled:opacity-30 disabled:hover:bg-transparent"
+              disabled={page === totalPages}
+              onClick={() => setPage(totalPages)}
+              title={language === 'vi' ? 'Trang cuối' : 'Last page'}
+            >
+              <ChevronsRight size={16} />
             </button>
           </div>
         </div>

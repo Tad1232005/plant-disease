@@ -49,6 +49,7 @@ async def predict_plant_disease(
     mode: RequestedMode = Form(default="auto"),
     strategy: InferenceStrategy = Form(default="ensemble"),
     model_type: ModelType | None = Form(default=None),
+    primary_model: ModelType | None = Form(default=None),
     db: Session = Depends(get_db),
     current_user: User | None = Depends(get_current_user_optional),
 ) -> dict:
@@ -56,6 +57,9 @@ async def predict_plant_disease(
     if (strategy == "single") != (model_type is not None):
         await file.close()
         raise HTTPException(status_code=422, detail="single cần model_type; ensemble không nhận model_type.")
+    if primary_model is not None and strategy == "single":
+        await file.close()
+        raise HTTPException(status_code=422, detail="primary_model chỉ áp dụng cho chế độ ensemble.")
     if current_user is None and farm_id is not None:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -77,7 +81,9 @@ async def predict_plant_disease(
             current_user.role if current_user else None,
             mode,
         )
-        active_models = get_active_models(db, resolved_mode, model_type=model_type)
+        active_models = get_active_models(
+            db, resolved_mode, model_type=model_type, primary_model=primary_model
+        )
     except ModeNotAllowedError as exc:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -118,7 +124,7 @@ async def predict_plant_disease(
         ) from exc
 
     result["inference_strategy"] = strategy
-    result["selected_model_type"] = model_type
+    result["selected_model_type"] = model_type or primary_model
     return await run_in_threadpool(
         complete_prediction,
         db,

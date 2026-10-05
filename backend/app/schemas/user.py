@@ -104,3 +104,22 @@ class AdminCreateUserRequest(_ProvisionUserRequest):
 
 class ManagerCreateUserRequest(_ProvisionUserRequest):
     """Manager tạo Managed User; cố ý không có field role."""
+
+class ManagerResetPasswordRequest(BaseModel):
+    """Manager đặt lại mật khẩu cho Managed User của chính mình."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    new_password: str = Field(..., min_length=8, max_length=128)
+
+    @field_validator("new_password")
+    @classmethod
+    def validate_password_strength(cls, value: str) -> str:
+        if not (
+            any(char.islower() for char in value)
+            and any(char.isupper() for char in value)
+            and any(char.isdigit() for char in value)
+        ):
+            raise ValueError("Password phải có chữ hoa, chữ thường và chữ số")
+        return value
+

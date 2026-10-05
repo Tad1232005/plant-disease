@@ -13,6 +13,8 @@ export const adminUsersApi = {
   get: async (id) => (await apiClient.get(`/admin/users/${id}`)).data,
   create: async (payload) => (await apiClient.post('/admin/users', payload)).data,
   setStatus: async (id, payload) => (await apiClient.patch(`/admin/users/${id}/status`, payload)).data,
+  create: async (payload) => (await apiClient.post('/admin/users', payload)).data,
+  changeStatus: async (userId, payload) => (await apiClient.patch(`/admin/users/${userId}/status`, payload)).data,
 }
 
 export const authApi = {
@@ -22,6 +24,10 @@ export const authApi = {
   },
   async me() {
     const { data } = await apiClient.get('/auth/me')
+    return data
+  },
+  async changePassword(payload) {
+    const { data } = await apiClient.post('/auth/change-password', payload)
     return data
   },
 }

@@ -1,21 +1,22 @@
 import { Navigate, Route, Routes } from 'react-router-dom'
 import ProtectedRoute from './components/auth/ProtectedRoute.jsx'
 import RoleGuard from './components/auth/RoleGuard.jsx'
-import AdminLayout from './layouts/AdminLayout.jsx'
 import AppLayout from './layouts/AppLayout.jsx'
 import FarmsPage from './pages/app/FarmsPage.jsx'
 import DashboardPage from './pages/app/DashboardPage.jsx'
 import DiseaseLibraryPage from './pages/app/DiseaseLibraryPage.jsx'
+import DiseaseProposalsPage from './pages/app/DiseaseProposalsPage.jsx'
+import FarmDashboardPage from './pages/app/FarmDashboardPage.jsx'
 import HistoryPage from './pages/app/HistoryPage.jsx'
+import ManagedUsersPage from './pages/app/ManagedUsersPage.jsx'
 import ScanPage from './pages/app/ScanPage.jsx'
-import AdminDashboardPage from './pages/admin/AdminDashboardPage.jsx'
-import DiseaseManagementPage from './pages/admin/DiseaseManagementPage.jsx'
-import PlaceholderPage from './pages/admin/PlaceholderPage.jsx'
-import UsersPage from './pages/admin/UsersPage.jsx'
+import ProfilePage from './pages/app/ProfilePage.jsx'
+import ScanDetailPage from './pages/app/ScanDetailPage.jsx'
 import LoginPage from './pages/auth/LoginPage.jsx'
 import RegisterPage from './pages/auth/RegisterPage.jsx'
 import NotFoundPage from './pages/NotFoundPage.jsx'
 import LandingPage from './pages/public/LandingPage.jsx'
+import GuestScanPage from './pages/public/GuestScanPage.jsx'
 
 export default function App() {
   return (
@@ -23,6 +24,7 @@ export default function App() {
       <Route path="/" element={<LandingPage />} />
       <Route path="/login" element={<LoginPage />} />
       <Route path="/register" element={<RegisterPage />} />
+      <Route path="/guest/scan" element={<GuestScanPage />} />
 
       <Route element={<ProtectedRoute />}>
         <Route element={<RoleGuard allowedRoles={['user', 'technician', 'manager']} />}>
@@ -30,20 +32,18 @@ export default function App() {
             <Route index element={<Navigate to="dashboard" replace />} />
             <Route path="dashboard" element={<DashboardPage />} />
             <Route path="scan" element={<ScanPage />} />
+            <Route path="scans/:id" element={<ScanDetailPage />} />
             <Route path="history" element={<HistoryPage />} />
-            <Route path="farms" element={<FarmsPage />} />
             <Route path="diseases" element={<DiseaseLibraryPage />} />
-          </Route>
-        </Route>
-
-        <Route element={<RoleGuard allowedRoles={['admin']} />}>
-          <Route path="/admin" element={<AdminLayout />}>
-            <Route index element={<AdminDashboardPage />} />
-            <Route path="users" element={<UsersPage />} />
-            <Route path="farms" element={<FarmsPage adminMode />} />
-            <Route path="diseases" element={<DiseaseManagementPage />} />
-            <Route path="models" element={<PlaceholderPage title="Quản lý phiên bản mô hình" description="Khung quản lý model_versions, accuracy và model đang chạy production." />} />
-            <Route path="system" element={<PlaceholderPage title="Theo dõi hệ thống" description="Khung thống kê lượt quét, tỷ lệ bệnh và người dùng hoạt động." />} />
+            <Route path="profile" element={<ProfilePage />} />
+            <Route element={<RoleGuard allowedRoles={['manager']} />}>
+              <Route path="farms" element={<FarmsPage />} />
+              <Route path="managed-users" element={<ManagedUsersPage />} />
+              <Route path="farm-dashboard" element={<FarmDashboardPage />} />
+            </Route>
+            <Route element={<RoleGuard allowedRoles={['technician']} />}>
+              <Route path="proposals" element={<DiseaseProposalsPage />} />
+            </Route>
           </Route>
         </Route>
       </Route>
