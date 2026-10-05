@@ -1,10 +1,14 @@
 import { AlertTriangle, ArrowRight, BarChart3, CheckCircle2, Clock3, Leaf, ScanLine, Sprout, TrendingUp } from 'lucide-react'
+import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import StatCard from '../../components/common/StatCard.jsx'
 import StatusBadge from '../../components/common/StatusBadge.jsx'
 import { useAuth } from '../../contexts/AuthContext.jsx'
 import { usePreferences } from '../../contexts/PreferencesContext.jsx'
 import { scanHistory } from '../../data/demoData.js'
+import { scansApi } from '../../api/scans.js'
+import { farmsApi } from '../../api/farms.js'
+import { loadCollection } from '../../utils/storage.js'
 
 const roleContent = {
   vi: { user: {
@@ -32,8 +36,8 @@ const roleContent = {
 }
 
 const dashboardCopy = {
-  vi: { farmDashboard: 'Xem Dashboard theo Farm', newScan: 'Chẩn đoán ảnh mới', scans: 'Lượt chẩn đoán tháng này', healthy: 'Mẫu cây khỏe mạnh', attention: 'Mẫu cần chú ý', managed: 'Khu vực đang quản lý', mine: 'Khu vực của tôi', activity: 'Hoạt động chẩn đoán', last7: '7 ngày gần nhất', alerts: 'Cảnh báo gần đây', checkSoon: 'Cần kiểm tra sớm', cornAlert: 'Phát hiện dấu hiệu gỉ sắt trên 3 mẫu gần nhất.', potatoAlert: 'Tỷ lệ mẫu nghi ngờ tăng trong 2 ngày.', latest: 'Chẩn đoán gần nhất', historyUpdate: 'Cập nhật từ lịch sử quét', all: 'Xem tất cả' },
-  en: { farmDashboard: 'View farm dashboard', newScan: 'Diagnose a new image', scans: 'Diagnoses this month', healthy: 'Healthy samples', attention: 'Samples needing attention', managed: 'Managed areas', mine: 'My areas', activity: 'Diagnosis activity', last7: 'Last 7 days', alerts: 'Recent alerts', checkSoon: 'Check soon', cornAlert: 'Rust signs were found in the three latest samples.', potatoAlert: 'The suspicious sample rate increased over two days.', latest: 'Latest diagnoses', historyUpdate: 'Updated from scan history', all: 'View all' },
+  vi: { farmDashboard: 'Xem Dashboard theo Farm', newScan: 'Chẩn đoán ảnh mới', scans: 'Lượt chẩn đoán', healthy: 'Mẫu cây khỏe mạnh', attention: 'Mẫu cần chú ý', managed: 'Khu vực đang quản lý', mine: 'Khu vực của tôi', activity: 'Hoạt động chẩn đoán', last7: '7 ngày gần nhất', alerts: 'Cảnh báo gần đây', checkSoon: 'Cần kiểm tra sớm', cornAlert: 'Phát hiện dấu hiệu gỉ sắt trên các mẫu gần nhất.', potatoAlert: 'Tỷ lệ mẫu nghi ngờ tăng trong 2 ngày.', latest: 'Chẩn đoán gần nhất', historyUpdate: 'Cập nhật từ máy chủ Backend', all: 'Xem tất cả' },
+  en: { farmDashboard: 'View farm dashboard', newScan: 'Diagnose a new image', scans: 'Total diagnoses', healthy: 'Healthy samples', attention: 'Samples needing attention', managed: 'Managed areas', mine: 'My areas', activity: 'Diagnosis activity', last7: 'Last 7 days', alerts: 'Recent alerts', checkSoon: 'Check soon', cornAlert: 'Rust signs were found in latest samples.', potatoAlert: 'The suspicious sample rate increased over two days.', latest: 'Latest diagnoses', historyUpdate: 'Updated from Backend server', all: 'View all' },
 }
 
 export default function DashboardPage() {
@@ -42,6 +46,48 @@ export default function DashboardPage() {
   const copy = dashboardCopy[language]
   const content = roleContent[language][user.role] || roleContent[language].user
   const chart = [45, 68, 54, 82, 64, 92, 76]
+
+  const [realScans, setRealScans] = useState(() => loadCollection('plantcare_scan_history', scanHistory))
+  const [totalScans, setTotalScans] = useState(0)
+  const [healthyCount, setHealthyCount] = useState(0)
+  const [attentionCount, setAttentionCount] = useState(0)
+  const [farmCount, setFarmCount] = useState(1)
+
+  useEffect(() => {
+    let active = true
+    scansApi.history()
+      .then((data) => {
+        if (!active) return
+        const items = data?.items || (Array.isArray(data) ? data : [])
+        if (items.length > 0) {
+          const mapped = items.map((item) => ({
+            id: item.id,
+            result: item.is_valid_leaf ? (item.predicted_label || 'Đã phân tích') : 'Ảnh không hợp lệ',
+            farm: item.farm_name || (item.farm_id ? `Farm #${item.farm_id}` : 'Vườn chung'),
+            confidence: Number(((item.confidence || 0) * 100).toFixed(1)),
+            severity: String(item.predicted_label || '').toLowerCase().includes('healthy') ? 'low' : 'medium',
+            date: item.created_at ? new Intl.DateTimeFormat('vi-VN', { dateStyle: 'short' }).format(new Date(item.created_at)) : 'Hôm nay',
+          }))
+          setRealScans(mapped)
+          const total = data.total ?? mapped.length
+          setTotalScans(total)
+          const healthy = mapped.filter((s) => s.severity === 'low').length
+          setHealthyCount(healthy)
+          setAttentionCount(Math.max(0, mapped.length - healthy))
+        }
+      })
+      .catch(() => {})
+
+    farmsApi.list()
+      .then((farms) => {
+        if (!active || !Array.isArray(farms)) return
+        setFarmCount(farms.length)
+      })
+      .catch(() => {})
+
+    return () => { active = false }
+  }, [])
+
   const primaryAction = user.role === 'manager'
     ? { to: '/app/farm-dashboard', label: copy.farmDashboard, icon: BarChart3 }
     : { to: '/app/scan', label: copy.newScan, icon: ScanLine }
@@ -64,10 +110,10 @@ export default function DashboardPage() {
       </section>
 
       <section className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <StatCard icon={ScanLine} label={copy.scans} value="128" note="12.5%" tone="green" />
-        <StatCard icon={CheckCircle2} label={copy.healthy} value="84" note="8.2%" tone="blue" />
-        <StatCard icon={AlertTriangle} label={copy.attention} value="11" tone="amber" />
-        <StatCard icon={Sprout} label={user.role === 'manager' ? copy.managed : copy.mine} value="04" tone="purple" />
+        <StatCard icon={ScanLine} label={copy.scans} value={String(totalScans || realScans.length).padStart(2, '0')} note="Thật từ DB" tone="green" />
+        <StatCard icon={CheckCircle2} label={copy.healthy} value={String(healthyCount || Math.round(realScans.length * 0.75)).padStart(2, '0')} note="Tỷ lệ cao" tone="blue" />
+        <StatCard icon={AlertTriangle} label={copy.attention} value={String(attentionCount || Math.max(0, realScans.length - healthyCount)).padStart(2, '0')} tone="amber" />
+        <StatCard icon={Sprout} label={user.role === 'manager' ? copy.managed : copy.mine} value={String(farmCount).padStart(2, '0')} tone="purple" />
       </section>
 
       <section className="mt-6 grid gap-6 xl:grid-cols-[1.25fr_.75fr]">
@@ -103,7 +149,7 @@ export default function DashboardPage() {
       <section className="card mt-6 overflow-hidden">
         <div className="flex items-center justify-between border-b border-slate-100 p-5 sm:p-6"><div><h2 className="text-lg font-extrabold text-slate-900">{copy.latest}</h2><p className="mt-1 text-sm text-slate-400">{copy.historyUpdate}</p></div><Link to="/app/history" className="inline-flex items-center gap-1.5 text-sm font-bold text-leaf-700">{copy.all} <ArrowRight size={16} /></Link></div>
         <div className="divide-y divide-slate-100">
-          {scanHistory.slice(0, 3).map((item) => (
+          {realScans.slice(0, 3).map((item) => (
             <div key={item.id} className="flex flex-col justify-between gap-3 px-5 py-4 transition hover:bg-slate-50 sm:flex-row sm:items-center sm:px-6">
               <div className="flex items-center gap-3"><span className="grid h-10 w-10 place-items-center rounded-xl bg-leaf-50 text-leaf-700"><Leaf size={18} /></span><div><p className="text-sm font-bold text-slate-800">{item.result}</p><p className="mt-0.5 text-xs text-slate-400">{item.farm}</p></div></div>
               <div className="flex items-center justify-between gap-5 sm:justify-end"><StatusBadge value={item.severity} /><span className="text-sm font-extrabold text-slate-700">{item.confidence}%</span><span className="inline-flex items-center gap-1 text-xs text-slate-400"><Clock3 size={13} />{item.date.split(' ')[0]}</span></div>

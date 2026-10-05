@@ -1,18 +1,53 @@
-import { AlertTriangle, BookOpen, Search, ShieldCheck } from 'lucide-react'
-import { useMemo, useState } from 'react'
+import { AlertTriangle, BookOpen, LoaderCircle, Search, ShieldCheck } from 'lucide-react'
+import { useEffect, useMemo, useState } from 'react'
 import PageHeader from '../../components/common/PageHeader.jsx'
 import StatusBadge from '../../components/common/StatusBadge.jsx'
 import { initialDiseases } from '../../data/demoData.js'
-import { loadCollection } from '../../utils/storage.js'
+import { diseasesApi } from '../../api/diseases.js'
+import { loadCollection, saveCollection } from '../../utils/storage.js'
 import { usePreferences } from '../../contexts/PreferencesContext.jsx'
+
+const STORAGE_KEY = 'plantcare_diseases'
+
+function normalizeDisease(item) {
+  const rawPlant = item.plant || (item.label_key ? item.label_key.split('_')[0] : 'Cây trồng')
+  const plantName = rawPlant.charAt(0).toUpperCase() + rawPlant.slice(1)
+  return {
+    ...item,
+    name: item.disease_name || item.name,
+    plant: plantName,
+    symptoms: item.description || item.symptoms || 'Chưa có mô tả chi tiết.',
+    treatment: item.treatment || 'Tham khảo ý kiến chuyên gia bảo vệ thực vật.',
+    severity: item.severity_level || item.severity || 'medium',
+  }
+}
 
 export default function DiseaseLibraryPage() {
   const { language } = usePreferences()
   const copy = language === 'vi'
-    ? { eyebrow: 'Kiến thức cây trồng', title: 'Thư viện bệnh cây', description: 'Nội dung bệnh, triệu chứng và gợi ý xử lý do quản trị viên cập nhật.', search: 'Tìm tên bệnh hoặc cây trồng...', treatment: 'Gợi ý xử lý', empty: 'Không tìm thấy nội dung phù hợp' }
-    : { eyebrow: 'Plant knowledge', title: 'Disease library', description: 'Disease information, symptoms, and treatment guidance maintained by administrators.', search: 'Search by disease or crop...', treatment: 'Suggested action', empty: 'No matching content found' }
+    ? { eyebrow: 'Kiến thức cây trồng', title: 'Thư viện bệnh cây', description: 'Nội dung bệnh, triệu chứng và gợi ý xử lý do quản trị viên cập nhật qua API /disease-info.', search: 'Tìm tên bệnh hoặc cây trồng...', treatment: 'Gợi ý xử lý', empty: 'Không tìm thấy nội dung phù hợp' }
+    : { eyebrow: 'Plant knowledge', title: 'Disease library', description: 'Disease information, symptoms, and treatment guidance maintained by administrators via API /disease-info.', search: 'Search by disease or crop...', treatment: 'Suggested action', empty: 'No matching content found' }
   const [query, setQuery] = useState('')
-  const diseases = loadCollection('plantcare_diseases', initialDiseases)
+  const [diseases, setDiseases] = useState(() => loadCollection(STORAGE_KEY, initialDiseases).map(normalizeDisease))
+  const [loading, setLoading] = useState(false)
+
+  useEffect(() => {
+    let active = true
+    setLoading(true)
+    diseasesApi.list()
+      .then((data) => {
+        if (!active || !Array.isArray(data)) return
+        if (data.length > 0) {
+          const normalized = data.map(normalizeDisease)
+          setDiseases(normalized)
+          saveCollection(STORAGE_KEY, normalized)
+        }
+      })
+      .catch(() => {})
+      .finally(() => { if (active) setLoading(false) })
+    return () => { active = false }
+  }, [])
+
   const filtered = useMemo(() => diseases.filter((item) => `${item.name} ${item.plant} ${item.symptoms}`.toLocaleLowerCase('vi').includes(query.toLocaleLowerCase('vi'))), [diseases, query])
 
   return (

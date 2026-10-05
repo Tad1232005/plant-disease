@@ -1,5 +1,6 @@
-import { Eye, History, Leaf, LoaderCircle, ShieldAlert } from 'lucide-react'
+import { ExternalLink, Eye, History, Leaf, LoaderCircle, ShieldAlert } from 'lucide-react'
 import { useEffect, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { scansApi } from '../../api/scans.js'
 import DataTable from '../../components/common/DataTable.jsx'
 import Modal from '../../components/common/Modal.jsx'
@@ -124,6 +125,15 @@ export default function HistoryPage() {
             <dl className="grid grid-cols-[auto_1fr] gap-x-5 gap-y-3 text-sm"><dt className="text-slate-400">{copy.farm}</dt><dd className="text-right font-semibold text-slate-700">{detail.farm}</dd><dt className="text-slate-400">{copy.severity}</dt><dd className="text-right"><StatusBadge value={detail.severity} /></dd></dl>
             {detail.top_k?.length > 0 && <div><p className="text-sm font-bold text-slate-800">{copy.top}</p><div className="mt-3 space-y-2">{detail.top_k.slice(0, 3).map((item, index) => <div key={`${item.label}-${index}`} className="flex justify-between rounded-xl bg-slate-50 px-3 py-2 text-xs"><span>{index + 1}. {friendlyLabel(item.label)}</span><strong>{toPercent(item.confidence).toFixed(1)}%</strong></div>)}</div></div>}
             <div className="rounded-2xl bg-emerald-50 p-4"><p className="text-xs font-bold uppercase tracking-wider text-emerald-700">{copy.treatment}</p><p className="mt-2 text-sm leading-6 text-emerald-900/75">{detail.treatment}</p></div>
+            {detail.id && (
+              <Link
+                to={`/app/scans/${detail.id}`}
+                className="btn-primary flex w-full items-center justify-center gap-2 !py-2.5 text-xs font-bold"
+              >
+                <ExternalLink size={14} />
+                {language === 'vi' ? 'Xem trang chi tiết đầy đủ (Bản in & Grad-CAM)' : 'View Full Details & Grad-CAM'}
+              </Link>
+            )}
           </div>
         )}
       </Modal>

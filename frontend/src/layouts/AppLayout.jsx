@@ -47,7 +47,7 @@ function Sidebar({ user, onClose, logout, t, language }) {
         ))}
       </nav>
       <div className="border-t border-slate-100 p-4">
-        <div className="mb-3 flex items-center gap-3 rounded-2xl bg-slate-50 p-3">
+        <NavLink to="/app/profile" onClick={onClose} className="mb-3 flex items-center gap-3 rounded-2xl bg-slate-50 p-3 hover:bg-leaf-50/70 transition">
           <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-leaf-100 font-bold text-leaf-700">
             {(user.full_name || user.username).charAt(0).toUpperCase()}
           </span>
@@ -55,7 +55,7 @@ function Sidebar({ user, onClose, logout, t, language }) {
             <p className="truncate text-sm font-bold text-slate-800">{user.full_name || user.username}</p>
             <p className="truncate text-xs text-slate-400">{roleLabel(user.role, language)}</p>
           </div>
-        </div>
+        </NavLink>
         <button onClick={logout} className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold text-slate-500 transition hover:bg-rose-50 hover:text-rose-600">
           <LogOut size={18} /> {t('common.logout')}
         </button>

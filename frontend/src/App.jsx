@@ -10,6 +10,8 @@ import FarmDashboardPage from './pages/app/FarmDashboardPage.jsx'
 import HistoryPage from './pages/app/HistoryPage.jsx'
 import ManagedUsersPage from './pages/app/ManagedUsersPage.jsx'
 import ScanPage from './pages/app/ScanPage.jsx'
+import ProfilePage from './pages/app/ProfilePage.jsx'
+import ScanDetailPage from './pages/app/ScanDetailPage.jsx'
 import LoginPage from './pages/auth/LoginPage.jsx'
 import RegisterPage from './pages/auth/RegisterPage.jsx'
 import NotFoundPage from './pages/NotFoundPage.jsx'
@@ -30,8 +32,10 @@ export default function App() {
             <Route index element={<Navigate to="dashboard" replace />} />
             <Route path="dashboard" element={<DashboardPage />} />
             <Route path="scan" element={<ScanPage />} />
+            <Route path="scans/:id" element={<ScanDetailPage />} />
             <Route path="history" element={<HistoryPage />} />
             <Route path="diseases" element={<DiseaseLibraryPage />} />
+            <Route path="profile" element={<ProfilePage />} />
             <Route element={<RoleGuard allowedRoles={['manager']} />}>
               <Route path="farms" element={<FarmsPage />} />
               <Route path="managed-users" element={<ManagedUsersPage />} />
@@ -42,7 +46,6 @@ export default function App() {
             </Route>
           </Route>
         </Route>
-
       </Route>
 
       <Route path="*" element={<NotFoundPage />} />

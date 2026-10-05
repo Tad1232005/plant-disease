@@ -8,16 +8,48 @@ import PageHeader from '../components/common/PageHeader.jsx'
 import StatusBadge from '../components/common/StatusBadge.jsx'
 import { useLanguage } from '../contexts/LanguageContext.jsx'
 import { initialDiseases } from '../data/demoData.js'
+import { adminDiseasesApi } from '../services/diseases.js'
 import { loadCollection, saveCollection } from '../utils/storage.js'
 
 const STORAGE_KEY = 'plantcare_diseases'
 
+function normalizeDisease(item) {
+  const labelKey = item.label_key || item.labelKey || ''
+  const rawPlant = item.plant || (labelKey ? labelKey.split('_')[0] : 'Cây trồng')
+  const plant = rawPlant.charAt(0).toUpperCase() + rawPlant.slice(1)
+  return {
+    ...item,
+    id: item.id || labelKey,
+    labelKey,
+    name: item.disease_name || item.name,
+    plant,
+    severity: item.severity_level || item.severity || 'medium',
+    symptoms: item.description || item.symptoms || '',
+    treatment: item.treatment || '',
+  }
+}
+
 export default function DiseaseManagementPage() {
   const { t } = useLanguage()
-  const [diseases, setDiseases] = useState(() => loadCollection(STORAGE_KEY, initialDiseases))
+  const [diseases, setDiseases] = useState(() => loadCollection(STORAGE_KEY, initialDiseases).map(normalizeDisease))
   const [editing, setEditing] = useState(null)
   const [formOpen, setFormOpen] = useState(false)
   const [deleting, setDeleting] = useState(null)
+
+  useEffect(() => {
+    let active = true
+    adminDiseasesApi.list()
+      .then((data) => {
+        if (!active || !Array.isArray(data)) return
+        if (data.length > 0) {
+          const mapped = data.map(normalizeDisease)
+          setDiseases(mapped)
+          saveCollection(STORAGE_KEY, mapped)
+        }
+      })
+      .catch(() => {})
+    return () => { active = false }
+  }, [])
 
   const diseaseFields = [
     { name: 'labelKey', label: t('diseases.field_label_key'), placeholder: 'tomato_late_blight', hint: 'Khớp với nhãn classes.json của model' },
@@ -31,12 +63,49 @@ export default function DiseaseManagementPage() {
   useEffect(() => saveCollection(STORAGE_KEY, diseases), [diseases])
   function openCreate() { setEditing(null); setFormOpen(true) }
   function openEdit(item) { setEditing(item); setFormOpen(true) }
-  function saveDisease(values) {
-    if (editing) setDiseases((items) => items.map((item) => item.id === editing.id ? { ...item, ...values } : item))
-    else setDiseases((items) => [{ ...values, id: Date.now() }, ...items])
+
+  async function saveDisease(values) {
+    if (editing) {
+      try {
+        const payload = {
+          disease_name: values.name,
+          description: values.symptoms,
+          treatment: values.treatment,
+          severity_level: values.severity,
+        }
+        await adminDiseasesApi.update(editing.labelKey, payload)
+        setDiseases((items) => items.map((item) => item.id === editing.id ? normalizeDisease({ ...item, ...values }) : item))
+      } catch {
+        setDiseases((items) => items.map((item) => item.id === editing.id ? { ...item, ...values } : item))
+      }
+    } else {
+      try {
+        const payload = {
+          label_key: values.labelKey,
+          disease_name: values.name,
+          description: values.symptoms,
+          treatment: values.treatment,
+          severity_level: values.severity,
+        }
+        const created = await adminDiseasesApi.create(payload)
+        setDiseases((items) => [normalizeDisease({ ...values, ...created }), ...items])
+      } catch {
+        setDiseases((items) => [{ ...values, id: Date.now() }, ...items])
+      }
+    }
     setFormOpen(false)
   }
-  function deleteDisease() { setDiseases((items) => items.filter((item) => item.id !== deleting.id)); setDeleting(null) }
+
+  async function deleteDisease() {
+    if (!deleting) return
+    try {
+      if (deleting.labelKey) {
+        await adminDiseasesApi.remove(deleting.labelKey)
+      }
+    } catch {}
+    setDiseases((items) => items.filter((item) => item.id !== deleting.id))
+    setDeleting(null)
+  }
 
   const columns = [
     { key: 'name', label: t('diseases.col_name'), sortable: true, render: (value, row) => <div className="flex items-center gap-3"><span className="grid h-9 w-9 place-items-center rounded-xl bg-leaf-50 text-leaf-700 dark:bg-leaf-900/40 dark:text-leaf-300"><Leaf size={17} /></span><div><p className="font-bold text-slate-800 dark:text-slate-100">{value}</p><p className="mt-0.5 text-xs text-slate-400 dark:text-slate-500">{row.labelKey}</p></div></div> },

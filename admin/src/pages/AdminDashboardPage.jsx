@@ -16,6 +16,7 @@ export default function AdminDashboardPage() {
   const [health, setHealth] = useState({ backend: null, database: null, model: null })
   // null = chưa lấy được danh sách version, [] = API OK nhưng không có version active.
   const [modelVersions, setModelVersions] = useState(null)
+  const [recentInvalid, setRecentInvalid] = useState([])
 
   useEffect(() => {
     let active = true
@@ -24,6 +25,9 @@ export default function AdminDashboardPage() {
     adminStatsApi.overview()
       .then((payload) => { if (active) setOverview(payload?.stats || payload?.data || payload || null) })
       .catch(() => { if (active) setOverview(null) })
+    adminStatsApi.recentInvalid()
+      .then((items) => { if (active && Array.isArray(items)) setRecentInvalid(items) })
+      .catch(() => {})
     systemHealthApi.live().then((ok) => update('backend', ok))
     systemHealthApi.ready().then((ok) => update('database', ok))
     systemHealthApi.capabilities().then((ok) => update('model', ok))
@@ -123,6 +127,37 @@ export default function AdminDashboardPage() {
           </div>
         </section>
       </div>
+
+      {recentInvalid?.length > 0 && (
+        <section className="card mt-6 p-6">
+          <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-4">
+            <div>
+              <h2 className="text-lg font-black text-slate-800 dark:text-slate-100">
+                {t('dashboard.recent_invalid_title') || 'Ca quét ngoài miền dữ liệu gần đây (OOD / Rejected)'}
+              </h2>
+              <p className="text-xs text-slate-400">Các ca quét bị thuật toán ensemble từ chối hoặc phát hiện bất thường</p>
+            </div>
+            <StatusBadge value="inactive">{recentInvalid.length} ca cảnh báo</StatusBadge>
+          </div>
+          <div className="divide-y divide-slate-100 dark:divide-slate-800">
+            {recentInvalid.slice(0, 5).map((scan) => (
+              <div key={scan.id} className="flex items-center justify-between py-3.5">
+                <div>
+                  <p className="text-sm font-bold text-slate-800 dark:text-slate-200">
+                    Ca quét #{scan.id} • {scan.rejection_reason || 'Out of distribution'}
+                  </p>
+                  <p className="text-xs text-slate-400">
+                    Mô hình: {scan.model_version || 'Ensemble'} • Độ bất định (OOD): {((scan.ood_score || 0) * 100).toFixed(1)}%
+                  </p>
+                </div>
+                <span className="rounded-lg bg-amber-50 dark:bg-amber-950/40 px-2.5 py-1 text-xs font-semibold text-amber-700 dark:text-amber-300">
+                  {scan.validation_status}
+                </span>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
     </div>
   )
 }

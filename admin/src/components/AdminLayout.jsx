@@ -1,4 +1,4 @@
-import { Activity, Bell, Database, FileCheck2, LayoutDashboard, Leaf, LogOut, Menu, ShieldCheck, Sprout, UserCog, X } from 'lucide-react'
+import { Activity, Bell, Database, FileCheck2, History, LayoutDashboard, Leaf, LogOut, Menu, ShieldCheck, Sprout, User, UserCog, X } from 'lucide-react'
 import { useState } from 'react'
 import { NavLink, Outlet } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext.jsx'
@@ -15,6 +15,8 @@ const navKeys = [
   { to: '/proposals', labelKey: 'nav.proposals', icon: FileCheck2 },
   { to: '/models', labelKey: 'nav.models', icon: Database },
   { to: '/system', labelKey: 'nav.system', icon: Activity },
+  { to: '/audit-logs', labelKey: 'nav.audit', icon: History },
+  { to: '/profile', labelKey: 'nav.profile', icon: User },
 ]
 
 function AdminSidebar({ onClose, logout, user }) {
@@ -66,8 +68,10 @@ function AdminSidebar({ onClose, logout, user }) {
         ))}
       </nav>
       <div className="border-t border-white/10 dark:border-slate-800 p-4">
-        <p className="truncate px-3 text-sm font-bold text-white dark:text-slate-100">{user.full_name || user.username}</p>
-        <p className="mb-3 truncate px-3 text-xs text-leaf-200/60 dark:text-slate-500">{user.email}</p>
+        <NavLink to="/profile" onClick={onClose} className="mb-2 block rounded-xl p-2 hover:bg-white/10 transition">
+          <p className="truncate text-sm font-bold text-white dark:text-slate-100">{user.full_name || user.username}</p>
+          <p className="truncate text-xs text-leaf-200/60 dark:text-slate-500">{user.email || 'admin@plantcare.vn'}</p>
+        </NavLink>
         <button
           onClick={logout}
           className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold text-leaf-100/70 transition hover:bg-white/10 hover:text-white dark:text-slate-400 dark:hover:bg-slate-900 dark:hover:text-rose-400"

@@ -9,6 +9,8 @@ import NotFoundPage from './pages/NotFoundPage.jsx'
 import ModelVersionsPage from './pages/ModelVersionsPage.jsx'
 import SystemStatsPage from './pages/SystemStatsPage.jsx'
 import UsersPage from './pages/UsersPage.jsx'
+import ProfilePage from './pages/ProfilePage.jsx'
+import AuditLogsPage from './pages/AuditLogsPage.jsx'
 import AdminRoute from './routes/AdminRoute.jsx'
 
 export default function App() {
@@ -25,6 +27,8 @@ export default function App() {
           <Route path="proposals" element={<DiseaseProposalsPage />} />
           <Route path="models" element={<ModelVersionsPage />} />
           <Route path="system" element={<SystemStatsPage />} />
+          <Route path="audit-logs" element={<AuditLogsPage />} />
+          <Route path="profile" element={<ProfilePage />} />
         </Route>
       </Route>
 
