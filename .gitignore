@@ -45,6 +45,8 @@ build/
 .vscode/
 .idea/
 *.log
+~$*
+scratch_browser/
 
 # ===== Ghi chú flow cá nhân (không push) =====
 .cursorrules

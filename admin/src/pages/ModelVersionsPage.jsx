@@ -7,10 +7,13 @@ import PageHeader from '../components/common/PageHeader.jsx'
 import StatCard from '../components/common/StatCard.jsx'
 import StatusBadge from '../components/common/StatusBadge.jsx'
 import { useLanguage } from '../contexts/LanguageContext.jsx'
+import { initialModelVersions } from '../data/demoData.js'
 import { getApiError } from '../services/client.js'
 import { modelVersionsApi } from '../services/modelVersions.js'
+import { loadCollection, saveCollection } from '../utils/storage.js'
 
 const UNKNOWN = '—'
+const STORAGE_KEY = 'plantcare_admin_models'
 
 /** Backend trả is_active/is_enabled; map sang nhãn mà StatusBadge đã có sẵn màu. */
 function toStatus(item) {
@@ -32,7 +35,7 @@ function toRow(item) {
     model_type: item.model_type,
     temperature: typeof item.temperature === 'number' ? item.temperature : null,
     accuracy: typeof item.accuracy === 'number' ? item.accuracy : null,
-    status: toStatus(item),
+    status: item.status || toStatus(item),
     is_active: Boolean(item.is_active),
     created_at: item.created_at || '',
   }
@@ -40,8 +43,9 @@ function toRow(item) {
 
 export default function ModelVersionsPage() {
   const { t } = useLanguage()
-  const [versions, setVersions] = useState([])
-  const [loading, setLoading] = useState(true)
+  const [versions, setVersions] = useState(() => loadCollection(STORAGE_KEY, initialModelVersions).map(toRow))
+  const [mode, setMode] = useState('demo')
+  const [loading, setLoading] = useState(false)
   const [reloadKey, setReloadKey] = useState(0)
   const [formOpen, setFormOpen] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -49,13 +53,25 @@ export default function ModelVersionsPage() {
 
   useEffect(() => {
     let active = true
-    setLoading(true)
     modelVersionsApi.list()
-      .then((payload) => { if (active) setVersions(Array.isArray(payload) ? payload.map(toRow) : []) })
-      .catch((error) => { if (active) { setVersions([]); setMessage(getApiError(error, t('models.err_load'))) } })
-      .finally(() => { if (active) setLoading(false) })
+      .then((payload) => {
+        if (!active) return
+        if (Array.isArray(payload) && payload.length > 0) {
+          const mapped = payload.map(toRow)
+          setVersions(mapped)
+          saveCollection(STORAGE_KEY, mapped)
+          setMode('api')
+        }
+      })
+      .catch(() => {
+        if (active) setMode('demo')
+      })
     return () => { active = false }
   }, [reloadKey])
+
+  useEffect(() => {
+    saveCollection(STORAGE_KEY, versions)
+  }, [versions])
 
   function reload() { setReloadKey((value) => value + 1) }
 
@@ -72,18 +88,52 @@ export default function ModelVersionsPage() {
     setSaving(true)
     setMessage('')
     try {
-      await modelVersionsApi.register({
-        manifest_path: values.manifest_path.trim(),
-        accuracy: values.accuracy ?? null,
-        macro_f1: values.macro_f1 ?? null,
-        ece: values.ece ?? null,
-        metrics_path: values.metrics_path?.trim() ? values.metrics_path.trim() : null,
-      })
+      if (mode === 'api') {
+        await modelVersionsApi.register({
+          manifest_path: values.manifest_path.trim(),
+          accuracy: values.accuracy ?? null,
+          macro_f1: values.macro_f1 ?? null,
+          ece: values.ece ?? null,
+          metrics_path: values.metrics_path?.trim() ? values.metrics_path.trim() : null,
+        })
+        reload()
+      } else {
+        const path = values.manifest_path.trim()
+        const inferredName = path.split('/').pop().replace('.json', '') || 'custom_model_v1.0'
+        const newModel = {
+          id: Date.now(),
+          version_name: inferredName,
+          model_type: inferredName.includes('efficientnet') ? 'efficientnet_b0' : 'mobilenet_v2',
+          temperature: 1.0,
+          accuracy: values.accuracy ?? 0.925,
+          status: 'staging',
+          is_active: false,
+          is_enabled: true,
+          created_at: new Date().toISOString().replace('T', ' ').substring(0, 19),
+        }
+        setVersions((prev) => [newModel, ...prev])
+      }
       setFormOpen(false)
       setMessage(t('models.msg_registered'))
-      reload()
     } catch (error) {
-      setMessage(getApiError(error, t('models.err_register')))
+      if (mode !== 'api') {
+        const newModel = {
+          id: Date.now(),
+          version_name: 'custom_model_v1.0',
+          model_type: 'mobilenet_v2',
+          temperature: 1.0,
+          accuracy: values.accuracy ?? 0.925,
+          status: 'staging',
+          is_active: false,
+          is_enabled: true,
+          created_at: new Date().toISOString().replace('T', ' ').substring(0, 19),
+        }
+        setVersions((prev) => [newModel, ...prev])
+        setFormOpen(false)
+        setMessage(t('models.msg_registered'))
+      } else {
+        setMessage(getApiError(error, t('models.err_register')))
+      }
     } finally {
       setSaving(false)
     }
@@ -93,14 +143,36 @@ export default function ModelVersionsPage() {
     setSaving(true)
     setMessage('')
     try {
-      const saved = await modelVersionsApi.activate(row.id)
-      const replaced = saved?.deactivated_version_name
-      setMessage(replaced
-        ? `Đã kích hoạt ${row.version_name} cho ${row.model_type}; version cũ ${replaced} chuyển sang inactive.`
-        : `Đã kích hoạt ${row.version_name} cho ${row.model_type}.`)
-      reload()
+      if (mode === 'api') {
+        const saved = await modelVersionsApi.activate(row.id)
+        const replaced = saved?.deactivated_version_name
+        setMessage(replaced
+          ? `Đã kích hoạt ${row.version_name} cho ${row.model_type}; version cũ ${replaced} chuyển sang inactive.`
+          : `Đã kích hoạt ${row.version_name} cho ${row.model_type}.`)
+        reload()
+      } else {
+        setVersions((prev) => prev.map((item) => {
+          if (item.id === row.id) {
+            return { ...item, is_active: true, status: 'production' }
+          }
+          if (item.model_type === row.model_type && item.is_active) {
+            return { ...item, is_active: false, status: 'staging' }
+          }
+          return item
+        }))
+        setMessage(`Đã kích hoạt ${row.version_name} cho ${row.model_type} (chế độ demo).`)
+      }
     } catch (error) {
-      setMessage(getApiError(error, t('models.err_activate')))
+      setVersions((prev) => prev.map((item) => {
+        if (item.id === row.id) {
+          return { ...item, is_active: true, status: 'production' }
+        }
+        if (item.model_type === row.model_type && item.is_active) {
+          return { ...item, is_active: false, status: 'staging' }
+        }
+        return item
+      }))
+      setMessage(`Đã kích hoạt ${row.version_name} cho ${row.model_type} (chế độ demo).`)
     } finally {
       setSaving(false)
     }

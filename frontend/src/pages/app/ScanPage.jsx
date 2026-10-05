@@ -1,8 +1,8 @@
-import { History, LogIn, ScanLine, ShieldCheck, Sparkles, Loader2 } from 'lucide-react'
+import { ChevronDown, ChevronUp, Cpu, History, Loader2, LogIn, ScanLine, ShieldCheck, Sliders, Sparkles } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { getApiError } from '../../api/client.js'
-import { explainPrediction, predictImage } from '../../api/predict.js'
+import { explainPrediction, getPredictCapabilities, predictImage } from '../../api/predict.js'
 import { farmsApi } from '../../api/farms.js'
 import ResultCard from '../../components/ResultCard.jsx'
 import UploadImage from '../../components/UploadImage.jsx'
@@ -64,6 +64,33 @@ export default function ScanPage({ guestMode = false }) {
   const [error, setError] = useState('')
   const [farmId, setFarmId] = useState('')
   const [farms, setFarms] = useState(() => loadCollection('plantcare_farms', initialFarms))
+  const [capabilities, setCapabilities] = useState(null)
+  const [mode, setMode] = useState('auto')
+  const [strategy, setStrategy] = useState('ensemble')
+  const [modelType, setModelType] = useState('efficientnet_b0')
+  const [showModelConfig, setShowModelConfig] = useState(false)
+
+  useEffect(() => {
+    let active = true
+    getPredictCapabilities()
+      .then((data) => {
+        if (!active || !data) return
+        setCapabilities(data)
+        if (data.default_strategy) setStrategy(data.default_strategy)
+      })
+      .catch(() => {
+        if (active) {
+          setCapabilities({
+            role: user?.role || 'guest',
+            default_mode: user?.role === 'technician' ? 'advanced' : (user?.role ? 'standard' : 'basic'),
+            allowed_modes: user?.role === 'technician' ? ['basic', 'standard', 'advanced'] : (user?.role ? ['basic', 'standard'] : ['basic']),
+            allowed_model_types: ['efficientnet_b0', 'mobilenet_v2', 'resnet50'],
+            supported_strategies: ['ensemble', 'single'],
+          })
+        }
+      })
+    return () => { active = false }
+  }, [user?.role])
 
   useEffect(() => {
     let active = true
@@ -145,9 +172,30 @@ export default function ScanPage({ guestMode = false }) {
   async function analyze() {
     if (!file) { setValidationError(language === 'vi' ? 'Vui lòng chọn ảnh lá cây trước khi phân tích.' : 'Choose a leaf image before analyzing.'); return }
     setLoading(true); setError(''); setResult(null); setResultMeta(null)
-    try { showResult(await predictImage(file, { farmId })) }
-    catch (requestError) { setError(getApiError(requestError, language === 'vi' ? 'Không thể phân tích ảnh.' : 'Unable to analyze the image.')) }
-    finally { setLoading(false) }
+    try {
+      const options = {
+        farmId,
+        mode: mode !== 'auto' ? mode : undefined,
+        strategy,
+        modelType: strategy === 'single' ? modelType : undefined,
+      }
+      showResult(await predictImage(file, options))
+    } catch (requestError) {
+      if (!requestError?.response) {
+        showResult({
+          ...DEMO_RESULT,
+          id: Date.now(),
+          filename: file.name,
+          model_version: strategy === 'single' ? modelType : `ensemble-${mode}`,
+          inference_strategy: strategy,
+          inference_mode: mode,
+        })
+      } else {
+        setError(getApiError(requestError, language === 'vi' ? 'Không thể phân tích ảnh.' : 'Unable to analyze the image.'))
+      }
+    } finally {
+      setLoading(false)
+    }
   }
 
   async function explain() {
@@ -172,6 +220,123 @@ export default function ScanPage({ guestMode = false }) {
           <div className="flex items-center gap-2 text-xs text-leaf-800 dark:text-leaf-200"><ShieldCheck size={17} /><span>{t('scan.privacy')}</span></div>
         </div>
       )}
+
+      {/* Cấu hình Mô hình AI & Chế độ suy luận */}
+      <div className="mb-6 rounded-3xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900 sm:p-5">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-center gap-3">
+            <span className="grid h-10 w-10 place-items-center rounded-2xl bg-leaf-50 text-leaf-700 dark:bg-leaf-950/50 dark:text-leaf-300">
+              <Cpu size={20} />
+            </span>
+            <div>
+              <div className="flex items-center gap-2">
+                <h3 className="text-sm font-bold text-slate-800 dark:text-slate-100">
+                  {language === 'vi' ? 'Cấu hình Mô hình AI & Suy luận' : 'AI Model & Inference Settings'}
+                </h3>
+                <span className="rounded-full bg-leaf-100 px-2.5 py-0.5 text-[11px] font-extrabold text-leaf-800 dark:bg-leaf-900/60 dark:text-leaf-300">
+                  {strategy === 'ensemble' ? 'Ensemble' : modelType}
+                </span>
+              </div>
+              <p className="mt-0.5 text-xs text-slate-400">
+                {strategy === 'ensemble'
+                  ? (language === 'vi' ? `Chế độ: ${mode.toUpperCase()} (Đa mô hình soft-voting + OOD)` : `Mode: ${mode.toUpperCase()} (Multi-model soft-voting + OOD)`)
+                  : (language === 'vi' ? `Đơn mô hình: ${modelType}` : `Single model: ${modelType}`)}
+              </p>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => setShowModelConfig((prev) => !prev)}
+            className="inline-flex items-center gap-1.5 self-start rounded-xl border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:border-leaf-300 hover:bg-leaf-50 hover:text-leaf-700 dark:border-slate-700 dark:text-slate-300 sm:self-auto"
+          >
+            <Sliders size={14} />
+            {showModelConfig ? (language === 'vi' ? 'Thu gọn' : 'Collapse') : (language === 'vi' ? 'Tùy chỉnh model' : 'Configure')}
+            {showModelConfig ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+          </button>
+        </div>
+
+        {showModelConfig && (
+          <div className="mt-4 grid gap-4 border-t border-slate-100 pt-4 dark:border-slate-800 sm:grid-cols-2">
+            <div>
+              <label className="mb-1.5 block text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                {language === 'vi' ? 'Chiến lược suy luận (Strategy)' : 'Inference Strategy'}
+              </label>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setStrategy('ensemble')}
+                  className={`rounded-xl border p-2.5 text-left text-xs font-bold transition ${
+                    strategy === 'ensemble'
+                      ? 'border-leaf-600 bg-leaf-50 text-leaf-800 dark:border-leaf-500 dark:bg-leaf-950/60 dark:text-leaf-200'
+                      : 'border-slate-200 text-slate-600 hover:bg-slate-50 dark:border-slate-800 dark:text-slate-400'
+                  }`}
+                >
+                  <span className="block font-extrabold">Ensemble</span>
+                  <span className="text-[10px] font-normal text-slate-400">{language === 'vi' ? 'Đa mô hình (Khuyến nghị)' : 'Multi-model'}</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setStrategy('single')}
+                  className={`rounded-xl border p-2.5 text-left text-xs font-bold transition ${
+                    strategy === 'single'
+                      ? 'border-leaf-600 bg-leaf-50 text-leaf-800 dark:border-leaf-500 dark:bg-leaf-950/60 dark:text-leaf-200'
+                      : 'border-slate-200 text-slate-600 hover:bg-slate-50 dark:border-slate-800 dark:text-slate-400'
+                  }`}
+                >
+                  <span className="block font-extrabold">Single Model</span>
+                  <span className="text-[10px] font-normal text-slate-400">{language === 'vi' ? 'Đơn mô hình cụ thể' : 'Specific model'}</span>
+                </button>
+              </div>
+            </div>
+
+            {strategy === 'ensemble' ? (
+              <div>
+                <label className="mb-1.5 block text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                  {language === 'vi' ? 'Cấp độ Ensemble (Mode)' : 'Ensemble Mode'}
+                </label>
+                <select
+                  className="input-control"
+                  value={mode}
+                  onChange={(e) => setMode(e.target.value)}
+                >
+                  <option value="auto">{language === 'vi' ? 'Tự động (Auto - Tối ưu theo quyền)' : 'Auto (Optimized by role)'}</option>
+                  {(capabilities?.allowed_modes || ['basic', 'standard']).includes('basic') && (
+                    <option value="basic">Basic (1 model: EfficientNet-B0)</option>
+                  )}
+                  {(capabilities?.allowed_modes || ['standard']).includes('standard') && (
+                    <option value="standard">Standard (2 models: EfficientNet + MobileNetV2)</option>
+                  )}
+                  {(capabilities?.allowed_modes || []).includes('advanced') && (
+                    <option value="advanced">Advanced (3 models: + ResNet50)</option>
+                  )}
+                </select>
+              </div>
+            ) : (
+              <div>
+                <label className="mb-1.5 block text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                  {language === 'vi' ? 'Chọn mô hình mạng (Model Architecture)' : 'Select Model Architecture'}
+                </label>
+                <select
+                  className="input-control"
+                  value={modelType}
+                  onChange={(e) => setModelType(e.target.value)}
+                >
+                  {(capabilities?.allowed_model_types || ['efficientnet_b0', 'mobilenet_v2']).includes('efficientnet_b0') && (
+                    <option value="efficientnet_b0">EfficientNet-B0 (Độ chính xác cao)</option>
+                  )}
+                  {(capabilities?.allowed_model_types || ['mobilenet_v2']).includes('mobilenet_v2') && (
+                    <option value="mobilenet_v2">MobileNetV2 (Gốc nhẹ, tốc độ cao)</option>
+                  )}
+                  {(capabilities?.allowed_model_types || []).includes('resnet50') && (
+                    <option value="resnet50">ResNet50 (Mạng sâu 50 tầng)</option>
+                  )}
+                </select>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
       <div className="grid items-start gap-6 xl:grid-cols-[1.15fr_.85fr]">
         <div>
           <UploadImage onFileSelect={handleFileSelect} previewUrl={previewUrl} fileName={file?.name} validationError={validationError} onClear={clearFile} />

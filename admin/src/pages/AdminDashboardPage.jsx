@@ -6,16 +6,17 @@ import { useLanguage } from '../contexts/LanguageContext.jsx'
 import { API_ORIGIN } from '../services/client.js'
 import { adminStatsApi } from '../services/stats.js'
 import { DB_TABLE_COUNT, systemHealthApi } from '../services/systemHealth.js'
+import { initialSystemStats } from '../data/demoData.js'
 
 const UNKNOWN = '—'
 
 export default function AdminDashboardPage() {
   const { t } = useLanguage()
-  const [overview, setOverview] = useState(null)
+  const [overview, setOverview] = useState(initialSystemStats)
   // null = đang kiểm tra, true = OK, false = lỗi (BE tắt / DB chưa sẵn sàng / không đọc được policy).
   const [health, setHealth] = useState({ backend: null, database: null, model: null })
   // null = chưa lấy được danh sách version, [] = API OK nhưng không có version active.
-  const [modelVersions, setModelVersions] = useState(null)
+  const [modelVersions, setModelVersions] = useState(['mobilenet_v2_primary_v2.1'])
   const [recentInvalid, setRecentInvalid] = useState([])
 
   useEffect(() => {
@@ -23,8 +24,11 @@ export default function AdminDashboardPage() {
     const update = (key, value) => { if (active) setHealth((current) => ({ ...current, [key]: value })) }
 
     adminStatsApi.overview()
-      .then((payload) => { if (active) setOverview(payload?.stats || payload?.data || payload || null) })
-      .catch(() => { if (active) setOverview(null) })
+      .then((payload) => {
+        const data = payload?.stats || payload?.data || payload
+        if (active && data) setOverview(data)
+      })
+      .catch(() => { if (active) setOverview(initialSystemStats) })
     adminStatsApi.recentInvalid()
       .then((items) => { if (active && Array.isArray(items)) setRecentInvalid(items) })
       .catch(() => {})

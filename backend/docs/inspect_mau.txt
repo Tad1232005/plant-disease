@@ -1,0 +1,134 @@
+=== DOC: backend/docs/Mau Cuon Bao Cao Do An QLDAPM.docx ===
+Total paragraphs: 143, Total tables: 3
+
+P[000] [Normal]: BỘ KHOA HỌC VÀ CÔNG NGHỆ
+P[001] [Normal]: HỌC VIỆN CÔNG NGHỆ BƯU CHÍNH VIỄN THÔNG
+P[002] [Normal]: -----------------------------
+P[005] [Normal]: BÁO CÁO 
+ĐỒ ÁN MÔN HỌC
+P[009] [Normal]: MÔN HỌC: <TÊN MÔN HỌC>
+P[010] [Normal]: ĐỀ TÀI: <TÊN ĐỀ TÀI>
+P[019] [Normal]: Giảng viên hướng dẫn: <Tên giảng viên>
+P[020] [Normal]: Thực hiện bởi nhóm sinh viên, bao gồm:
+P[021] [Normal]: <Họ tên thành viên 01>	<MSSV>	<Lớp SV>		<Trưởng nhóm>
+P[022] [Normal]: <Họ tên thành viên 02>	<MSSV>	<Lớp SV>		<Thành viên>
+P[023] [Normal]: <Họ tên thành viên 03>	<MSSV>	<Lớp SV>		<Thành viên>
+P[028] [Normal]: TP.HCM, tháng ….... /20…
+P[029] [Heading 1]: MỤC LỤC
+P[030] [Heading 1]: DANH SÁCH HÌNH, BẢNG
+P[032] [Heading 1]: DANH MỤC TỪ VIẾT TẮT
+P[034] [Heading 1]: CHƯƠNG I. TỔNG QUAN
+P[035] [Heading 2]: Giới thiệu đề tài
+P[036] [List Paragraph]: Mục tiêu của đề tài
+P[037] [List Paragraph]: Phạm vi áp dụng
+P[038] [List Paragraph]: Nền tảng kỹ thuật
+P[039] [Heading 2]: Cơ sở lý thuyết
+P[040] [List Paragraph]: Lý thuyết 1
+P[041] [List Paragraph]: Lý thuyết 2
+P[042] [List Paragraph]: Lý thuyết 3
+P[043] [List Paragraph]: …
+P[046] [Heading 1]: CHƯƠNG II. PHÂN TÍCH NỘI DUNG, YÊU CẦU
+P[047] [Heading 2]: Giới thiệu quy trình 1
+P[048] [List Paragraph]: Nội dung 1
+P[049] [List Paragraph]: Nội dung 2
+P[050] [List Paragraph]: Nội dung 3
+P[051] [Heading 2]: Giới thiệu quy trình 2
+P[052] [List Paragraph]: Nội dung 1
+P[053] [List Paragraph]: Nội dung 2
+P[054] [List Paragraph]: Nội dung 3
+P[055] [Normal]: Thêm quy trình 3 nếu có.
+P[056] [Heading 2]: Yêu cầu chức năng nghiệp vụ
+P[057] [List Paragraph]: Chức năng của đối tượng Người đi tìm trọ:
+P[059] [List Paragraph]: Chức năng của đối tượng 2
+P[060] [List Paragraph]: Chức năng của đối tượng 3
+P[061] [Heading 2]: Yêu cầu chức năng hệ thống và yêu cầu chất lượng
+P[062] [List Paragraph]: Nội dung 1
+P[063] [List Paragraph]: Nội dung 2
+P[064] [List Paragraph]: Nội dung 3
+P[069] [Heading 1]: CHƯƠNG III. PHÂN TÍCH THIẾT KẾ
+P[070] [Heading 2]: Sơ đồ user case
+P[071] [List Paragraph]: Nội dung 1
+P[072] [List Paragraph]: Nội dung 2
+P[073] [List Paragraph]: Nội dung 3
+P[074] [Heading 2]: Sơ đồ hoạt động
+P[075] [List Paragraph]: Nội dung 1
+P[076] [List Paragraph]: Nội dung 2
+P[077] [List Paragraph]: Nội dung 3
+P[078] [Heading 2]: Thiết kế cơ sở dữ liệu
+P[079] [List Paragraph]: Mô hình ERD
+P[080] [List Paragraph]: Sơ đồ Diagram
+P[081] [List Paragraph]: Cấu trúc các bảng
+P[082] [List Paragraph]: - Bảng: ROLE
+P[084] [Heading 2]: Thiết kế giao diện
+P[085] [List Paragraph]: Giao diện 1
+P[086] [List Paragraph]: Giao diện 2
+P[087] [List Paragraph]: Giao diện 3
+P[088] [Heading 2]: Thiết kế xử lý
+P[089] [List Paragraph]: Xử lý 1
+P[090] [List Paragraph]: Xử lý 2
+P[091] [List Paragraph]: Xử lý 3
+P[092] [List Paragraph]: …
+P[099] [Heading 1]: CHƯƠNG IV. PHÁT TRIỂN/THỰC THI
+P[100] [Heading 2]: Màn hình danh sách nhà trọ
+P[101] [Normal]: Màn hình này hiển thị danh sách các nhà trọ đã được xác thực, người dùng có thể thấy được các thông tin cần thiết về nhà trọ đó.
+P[103] [Normal]: Hình 4.1 Màn hình danh sách nhà trọ
+P[109] [Heading 2]: Màn hình danh sách các quận quan tâm
+P[110] [Normal]: Màn hình hiển thị danh sách các quận mà người dùng quan tâm.
+P[111] [Normal]: Khi bấm vào từng quận sẽ hiển thị nhà trọ thuộc quận đó.
+P[113] [Normal]: Hình 4.2 và 4.3 Màn hình danh sách các quận quan tâm và Màn hình nhà trọ thuộc quận
+P[117] [Heading 2]: Màn hình chi tiết nhà trọ
+P[118] [Normal]: Màn hình hiển thị thông tin chỉ tiết của nhà trọ, người dùng sẽ thấy được tên và số điện thoại của chủ nhà trọ để liên lạc một cách nhanh chóng. Ứng dụng hỗ trợ chỉ đường cho người dùng đến nhà trọ thông qua Google Map.
+P[119] [Normal]: Người dùng có thể xem các nhà trọ gần với nhà trọ mình đang quan tâm, xem các đánh giá hoặc báo cáo vi phạm.
+P[120] [Normal]: Bên dưới, người dùng có thể thấy được danh sách các phòng trọ với các trạng thái để có thể biết được phòng nào đang còn trống.
+P[122] [Normal]: Hình 4.4 Màn hình chi tiết nhà trọ
+P[124] [Heading 1]: CHƯƠNG V. TRIỂN KHAI
+P[125] [Heading 2]: Cài đặt
+P[126] [List Paragraph]: Danh sách tình trạng cài đặt các chức năng (kèm mức độ hoàn thành)
+P[127] [Heading 2]: Thử nghiệm
+P[128] [List Paragraph]: Tài khoản dùng để test các chức năng của <tên đối tượng 1>:
+P[129] [List Paragraph]: Tài khoản:
+P[130] [List Paragraph]: Mật khẩu:
+P[131] [List Paragraph]: Tài khoản dùng để test các chức năng của <tên đối tượng 2>:
+P[132] [List Paragraph]: Tài khoản:
+P[133] [List Paragraph]: Mật khẩu:
+P[134] [Heading 1]: CHƯƠNG VI. KẾT LUẬN
+P[135] [Heading 2]: Kết quả đã thực hiện
+P[136] [Heading 2]: Ưu khuyết điểm
+P[137] [Heading 2]: Hướng mở rộng trong tương lai
+P[140] [Heading 1]: TÀI LIỆU THAM KHẢO
+
+--- TABLE 0 (25 rows, 6 cols) ---
+R0: STT | Công việc | Loại công việc | Quy định/Công thức liên quan | Biểu mẫu liên quan | Ghi chú
+R1: 1 | Đăng nhập | Tra cứu | - Tài khoản bắt buộc phải tồn tại trong database - Bắt buộc phải điền email và mật khẩu - Email phải nhập đúng định dạng |  | 
+R2: 2 | Đăng ký | Lưu trữ | - Bắt buộc nhập đầy đủ thông tin email, họ tên, số điện thoại, mật khẩu và xác nhận mật khẩu - Email và số điện thoại phải là duy nhất, chưa từng được đăng ký trước đây - Email phải đúng định dạng, số điện thoại đúng 10 số - Chọn hình thức đăng ký: người đi tìm trọ |  | 
+R3: 3 | Xem danh sách các nhà trọ | Trích xuất | - Hiển thị tất cả các nhà trọ đã được kiểm duyệt và thông tin liên quan đến nhà trọ đó |  | 
+R4: 4 | Xem danh sách các quận quan tâm | Trích xuất | - Hiển thị tất cả các quận mà bạn đã quan tâm và nhận Email khi có nhà trọ trong khu vực đó được đăng lên |  | 
+R5: 5 |  |  |  |  | 
+R6: 6 |  |  |  |  | 
+R7: 7 |  |  |  |  | 
+R8: 8 |  |  |  |  | 
+R9: 9 |  |  |  |  | 
+R10: 10 |  |  |  |  | 
+R11: 11 |  |  |  |  | 
+R12: 12 |  |  |  |  | 
+R13: 13 |  |  |  |  | 
+R14: 14 |  |  |  |  | 
+R15: 15 |  |  |  |  | 
+R16: 16 |  |  |  |  | 
+R17: 17 |  |  |  |  | 
+R18: 18 |  |  |  |  | 
+R19: 19 |  |  |  |  | 
+R20: 20 |  |  |  |  | 
+R21: 21 |  |  |  |  | 
+R22: 22 |  |  |  |  | 
+R23: 23 |  |  |  |  | 
+R24: 24 | Xem thông tin ví tiền | Trích xuất | - Kiểm tra số dư của ví tiền và các lịch sử giao dịch có liên quan đến ví tiền - Có thể nạp hoặc rút tiền thông qua quản trị viên của ứng dụng |  | 
+
+--- TABLE 1 (3 rows, 4 cols) ---
+R0: Tên thuộc tính | Kiểu dữ liệu | Ràng buộc | Giải thích
+R1: ID | numeric | PK, Not Null | Mã nhóm quyền
+R2: NAME | varchar(50) | Not Null | Tên nhóm quyền
+
+--- TABLE 2 (2 rows, 4 cols) ---
+R0: STT | Chức năng | Mức độ hoàn thành | Ghi chú
+R1:  |  |  | 

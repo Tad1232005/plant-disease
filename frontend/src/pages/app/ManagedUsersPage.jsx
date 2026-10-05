@@ -1,5 +1,7 @@
 import { KeyRound, Link2Off, Lock, Plus, Unlock, UsersRound } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
+import { getApiError } from '../../api/client.js'
+import { farmsApi } from '../../api/farms.js'
 import { farmMembersApi, managedUsersApi } from '../../api/managedUsers.js'
 import ConfirmDialog from '../../components/common/ConfirmDialog.jsx'
 import CrudForm from '../../components/common/CrudForm.jsx'
@@ -20,15 +22,17 @@ function unwrapList(payload) {
   return payload?.items || payload?.users || payload?.data || []
 }
 
-function normalizeUser(user, farms, language = 'vi') {
-  const farmId = user.farm_id ?? user.farm?.id ?? user.farmId ?? ''
-  const farm = farms.find((item) => String(item.id) === String(farmId))
+function normalizeUser(user, farmMap = {}, language = 'vi') {
+  const userId = user.id ?? user.user_id
+  const farmInfo = farmMap[userId] || {}
+  const farmId = user.farm_id ?? user.farmId ?? farmInfo.farmId ?? ''
+  const farmName = user.farm_name || user.farm?.name || user.farmName || farmInfo.farmName || (language === 'vi' ? 'Chưa phân công' : 'Unassigned')
   return {
     ...user,
-    id: user.id ?? user.user_id,
+    id: userId,
     full_name: user.full_name || user.name || user.username,
     farmId,
-    farmName: user.farm_name || user.farm?.name || farm?.name || (language === 'vi' ? 'Chưa phân công' : 'Unassigned'),
+    farmName,
     status: user.status || 'active',
   }
 }
@@ -42,7 +46,7 @@ export default function ManagedUsersPage() {
     success: 'Managed User created and assigned successfully.', failure: 'Unable to create the Managed User. Check the Manager API.', removed: 'Managed User removed from the farm.', removeFailure: 'Unable to remove the member from the farm.', person: 'Farmer (Managed User)', role: 'Role', farm: 'Farm', unassigned: 'Unassigned', loading: 'Connecting to the Managed User API...', api: 'Connected to /manager/users.', demo: 'The Week 4 backend is unavailable, so local demo data is shown.', search: 'Search by name, email, or farm...', remove: 'Remove from farm', empty: 'No Managed Users yet', emptyText: 'Select Add Managed User to create and assign an account.', removeTitle: 'Remove from farm', removeQuestion: 'Remove', accountKept: 'The account will be kept.',
     status: 'Status', resetPw: 'Reset Password', lockTitle: 'Suspend Account', unlockTitle: 'Activate Account',
   }
-  const [farms] = useState(() => loadCollection('plantcare_farms', initialFarms))
+  const [farms, setFarms] = useState(() => loadCollection('plantcare_farms', initialFarms))
   const [users, setUsers] = useState(() => loadCollection(STORAGE_KEY, initialManagedUsers.filter((item) => item.role === 'user')))
   const [mode, setMode] = useState('loading')
   const [formOpen, setFormOpen] = useState(false)
@@ -54,29 +58,102 @@ export default function ManagedUsersPage() {
 
   useEffect(() => {
     let active = true
-    managedUsersApi.list()
-      .then((payload) => {
+
+    async function loadData() {
+      let loadedFarms = farms
+      try {
+        const farmsData = await farmsApi.list()
+        if (active && Array.isArray(farmsData) && farmsData.length > 0) {
+          loadedFarms = farmsData
+          setFarms(farmsData)
+          saveCollection('plantcare_farms', farmsData)
+        }
+      } catch {
+        // use fallback farms
+      }
+
+      try {
+        const payload = await managedUsersApi.list()
         if (!active) return
-        const rows = unwrapList(payload).map((item) => normalizeUser(item, farms, language))
+
+        // Build membership lookup map from manager's farms
+        const farmMap = {}
+        if (Array.isArray(loadedFarms) && loadedFarms.length > 0) {
+          await Promise.all(
+            loadedFarms.map(async (farm) => {
+              try {
+                const members = await farmMembersApi.list(farm.id)
+                const memberList = unwrapList(members)
+                memberList.forEach((m) => {
+                  const uid = m.user_id ?? m.user?.id
+                  if (uid) farmMap[uid] = { farmId: String(farm.id), farmName: farm.name }
+                })
+              } catch {
+                // farm members fetch failed or empty
+              }
+            })
+          )
+        }
+
+        const rows = unwrapList(payload).map((item) => normalizeUser(item, farmMap, language))
         setUsers(rows)
         setMode('api')
-      })
-      .catch(() => {
+      } catch {
         if (active) setMode('demo')
-      })
+      }
+    }
+
+    loadData()
     return () => { active = false }
-  }, [farms, language])
+  }, [language])
 
   useEffect(() => {
     if (mode !== 'loading') saveCollection(STORAGE_KEY, users)
   }, [mode, users])
 
   const fields = useMemo(() => [
-    { name: 'full_name', label: t('register.fullName'), placeholder: language === 'vi' ? 'Nguyễn Văn Bình' : 'Alex Nguyen', fullWidth: true },
-    { name: 'username', label: t('login.username'), placeholder: 'managed.user', minLength: 3 },
-    { name: 'email', label: 'Email', type: 'email', placeholder: 'user@example.com' },
-    { name: 'password', label: t('managed.initialPassword'), type: 'password', placeholder: t('register.passwordPlaceholder'), minLength: 8 },
-    { name: 'farm_id', label: t('managed.farm'), type: 'select', options: farms.map((farm) => ({ value: String(farm.id), label: farm.name })) },
+    {
+      name: 'full_name',
+      label: t('register.fullName'),
+      placeholder: language === 'vi' ? 'Nguyễn Văn Bình' : 'Alex Nguyen',
+      fullWidth: true,
+      required: true,
+    },
+    {
+      name: 'username',
+      label: t('login.username'),
+      placeholder: 'farmer_01',
+      minLength: 3,
+      required: true,
+    },
+    {
+      name: 'email',
+      label: 'Email',
+      type: 'email',
+      placeholder: 'user@example.com',
+      required: false,
+    },
+    {
+      name: 'password',
+      label: t('managed.initialPassword'),
+      type: 'password',
+      placeholder: '••••••••',
+      minLength: 8,
+      required: true,
+      hint: language === 'vi'
+        ? 'Tối thiểu 8 ký tự, gồm cả chữ hoa, chữ thường và chữ số (ví dụ: Password123!).'
+        : 'Min 8 chars, uppercase, lowercase, and digit (e.g. Password123!).',
+    },
+    {
+      name: 'farm_id',
+      label: t('managed.farm'),
+      type: 'select',
+      required: false,
+      options: farms.map((farm) => ({ value: String(farm.id), label: farm.name })),
+      hint: language === 'vi'
+        ? 'Gán trực tiếp vào trang trại (tùy chọn, có thể gán sau).'
+        : 'Assign to a farm immediately (optional, can be assigned later).',
+    },
   ], [farms, language, t])
 
   async function createManagedUser(values) {
@@ -84,33 +161,59 @@ export default function ManagedUsersPage() {
     setMessage('')
     const farm = farms.find((item) => String(item.id) === String(values.farm_id))
     const payload = {
-      full_name: values.full_name,
-      username: values.username,
-      email: values.email,
+      full_name: values.full_name?.trim() || undefined,
+      username: values.username?.trim(),
       password: values.password,
-      role: 'user',
+    }
+    if (values.email && values.email.trim()) {
+      payload.email = values.email.trim()
     }
 
     try {
       if (mode === 'api') {
         const created = await managedUsersApi.create(payload)
         const userId = created.id ?? created.user_id
-        if (values.farm_id && userId) await farmMembersApi.add(values.farm_id, userId)
-        setUsers((items) => [normalizeUser({ ...created, farm_id: values.farm_id }, farms, language), ...items])
+        let farmAssigned = false
+        if (values.farm_id && userId) {
+          try {
+            await farmMembersApi.add(values.farm_id, userId)
+            farmAssigned = true
+          } catch (farmErr) {
+            console.warn('Could not assign farm member:', farmErr)
+          }
+        }
+        const createdItem = normalizeUser(
+          {
+            ...created,
+            farm_id: farmAssigned ? values.farm_id : '',
+            farm_name: farmAssigned ? farm?.name : '',
+          },
+          {},
+          language
+        )
+        setUsers((items) => [createdItem, ...items.filter((u) => u.id !== createdItem.id)])
+        setFormOpen(false)
+        setMessage(
+          farmAssigned || !values.farm_id
+            ? copy.success
+            : (language === 'vi'
+                ? `Đã tạo tài khoản @${created.username} thành công. (Gán nông trại chưa hoàn tất).`
+                : `User @${created.username} created successfully (farm assignment skipped).`)
+        )
       } else {
         setUsers((items) => [{
           ...payload,
           password: undefined,
           id: Date.now(),
-          farmId: values.farm_id,
+          farmId: values.farm_id || '',
           farmName: farm?.name || copy.unassigned,
           status: 'active',
         }, ...items])
+        setFormOpen(false)
+        setMessage(copy.success)
       }
-      setFormOpen(false)
-      setMessage(copy.success)
     } catch (error) {
-      setMessage(error?.response?.data?.detail || copy.failure)
+      setMessage(getApiError(error, copy.failure))
     } finally {
       setSaving(false)
     }
@@ -126,7 +229,7 @@ export default function ManagedUsersPage() {
       setUsers((prev) => prev.map((u) => u.id === row.id ? { ...u, status: nextStatus } : u))
       setMessage(language === 'vi' ? `Đã cập nhật trạng thái của ${row.full_name} thành: ${nextStatus}` : `Status updated to ${nextStatus}`)
     } catch (err) {
-      setMessage(err?.response?.data?.detail || (language === 'vi' ? 'Không thể cập nhật trạng thái.' : 'Failed to update status.'))
+      setMessage(getApiError(err, language === 'vi' ? 'Không thể cập nhật trạng thái.' : 'Failed to update status.'))
     }
   }
 
@@ -142,7 +245,7 @@ export default function ManagedUsersPage() {
       setResettingUser(null)
       setNewPassword('')
     } catch (err) {
-      setMessage(err?.response?.data?.detail || (language === 'vi' ? 'Không thể đặt lại mật khẩu.' : 'Failed to reset password.'))
+      setMessage(getApiError(err, language === 'vi' ? 'Không thể đặt lại mật khẩu.' : 'Failed to reset password.'))
     } finally {
       setSaving(false)
     }
@@ -158,7 +261,7 @@ export default function ManagedUsersPage() {
       setMessage(copy.removed)
       setRemoving(null)
     } catch (error) {
-      setMessage(error?.response?.data?.detail || copy.removeFailure)
+      setMessage(getApiError(error, copy.removeFailure))
     } finally {
       setSaving(false)
     }

@@ -45,6 +45,25 @@ export default function ResultCard({ result, loading, error, onUseDemo, meta, on
         <div className="mt-6 flex items-end justify-between"><span className="text-sm text-white/70">{t('result.confidence')}</span><strong className="text-3xl">{confidence.toFixed(1)}%</strong></div>
         <div className="mt-2 h-2 overflow-hidden rounded-full bg-black/15"><div className="h-full rounded-full bg-white transition-all" style={{ width: `${Math.min(confidence, 100)}%` }} /></div>
         {result.ood_score !== undefined && <p className="mt-3 text-xs text-white/70">OOD score: {toPercent(result.ood_score).toFixed(1)}%</p>}
+        {(result.model_version || result.inference_strategy || result.inference_mode) && (
+          <div className="mt-3 flex flex-wrap items-center gap-1.5 text-[11px] text-white/90">
+            {result.model_version && (
+              <span className="rounded-md bg-white/20 px-2 py-0.5 font-medium backdrop-blur-sm">
+                Model: <strong>{result.model_version}</strong>
+              </span>
+            )}
+            {result.inference_strategy && (
+              <span className="rounded-md bg-white/20 px-2 py-0.5 font-medium backdrop-blur-sm">
+                Strategy: <strong>{result.inference_strategy}</strong>
+              </span>
+            )}
+            {result.inference_mode && (
+              <span className="rounded-md bg-white/20 px-2 py-0.5 font-medium backdrop-blur-sm">
+                Mode: <strong>{result.inference_mode}</strong>
+              </span>
+            )}
+          </div>
+        )}
       </div>
       <div className="p-6">
         {meta && <div className="mb-6 grid gap-3 rounded-2xl bg-slate-50 p-4 text-xs text-slate-600 sm:grid-cols-2"><span className="flex items-center gap-2"><MapPin size={15} className="text-leaf-600" />{meta.farmName}</span><span className="flex items-center gap-2"><CalendarClock size={15} className="text-leaf-600" />{meta.date}</span></div>}

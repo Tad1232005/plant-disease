@@ -1,0 +1,163 @@
+=== DOC: backend/docs\BCQLDAPM_Nhóm10_29092026.docx ===
+Total paragraphs: 158, Total tables: 5
+
+P[000] [Normal]: BỘ KHOA HỌC VÀ CÔNG NGHỆ
+P[001] [Normal]: HỌC VIỆN CÔNG NGHỆ BƯU CHÍNH VIỄN THÔNG
+P[002] [Normal]: -----------------------------
+P[005] [Normal]: BÁO CÁO 
+TIẾN ĐỘ GIỮA KỲ
+P[008] [Normal]: ĐỀ TÀI: NHẬN DIỆN BỆNH LÁ CÂY
+P[016] [Normal]: Môn học: Quản lý dự án phần mềm
+P[017] [Normal]: Giảng viên hướng dẫn: Nguyễn Thị Bích Nguyên
+P[018] [Normal]: Thực hiện bởi nhóm sinh viên, bao gồm:
+P[019] [Normal]: Nguyễn Quốc Đạt			N23DVCN010	(Trưởng nhóm)
+P[020] [Normal]: Nguyễn Thàng Long		N23DVCN035
+P[021] [Normal]: Nguyễn Đình Thiện 			N23DVCN055
+P[030] [Normal]: TP.HCM, tháng 09/2026
+P[031] [Heading 1]: LỜI MỞ ĐẦU
+P[033] [Normal]: Đây là báo cáo tiến độ giữa kỳ của nhóm cho đồ án môn Quản lý Dự án Phần mềm, đề tài "Hệ thống nhận diện bệnh trên lá cây từ ảnh". Nội dung báo cáo phản ánh trung thực toàn bộ khối lượng công việc nhóm đã thực hiện tính đến thời điểm hiện tại: từ việc khảo sát yêu cầu, thiết kế kiến trúc, chuẩn hóa dữ liệu, huấn luyện và đánh giá các mô hình học sâu, đến việc xây dựng hệ thống Backend API chuẩn RESTful, thiết kế cơ sở dữ liệu quan hệ, và xây dựng 2 ứng dụng giao diện độc lập (Client App & Admin App). Báo cáo cũng thẳng thắn chỉ ra những hạn chế kỹ thuật hiện tại, cùng kế hoạch cho báo cáo cuối kỳ.
+P[035] [Normal]: Nhóm xin cam đoan toàn bộ nội dung trong báo cáo và mã nguồn đính kèm là do nhóm tự tìm hiểu, thiết kế và cài đặt, có sử dụng sự hỗ trợ của công cụ AI (Claude) trong quá trình tra cứu kỹ thuật, gỡ lỗi và soạn thảo tài liệu — theo đúng tinh thần một công cụ hỗ trợ học tập, không thay thế quá trình tự làm việc của nhóm.
+P[037] [Heading 1]: MỤC LỤC
+P[039] [Heading 1]: CHƯƠNG 1. TỔNG QUAN
+P[040] [Heading 2]: 1.1. Lý do chọn đề tài
+P[041] [Normal]: Sâu bệnh hại lá là một trong những nguyên nhân chính làm giảm năng suất cây trồng. Trên thực tế, phần lớn nông dân phát hiện bệnh bằng kinh nghiệm cá nhân, dễ nhầm lẫn giữa các loại bệnh có triệu chứng gần giống nhau, dẫn đến xử lý sai thuốc hoặc xử lý muộn. Với sự phát triển của học sâu (Deep Learning) trong thị giác máy tính, việc xây dựng một công cụ hỗ trợ nhận diện bệnh qua ảnh chụp là khả thi và có ý nghĩa thực tiễn.
+P[042] [Normal]: Nhóm chọn đề tài này vì vừa phù hợp với môn học Quản lý Dự án Phần mềm (đòi hỏi phối hợp 3 mảng công việc: Học máy, Backend, Frontend), vừa là cơ hội để nhóm thực hành đầy đủ một chu trình phát triển phần mềm nhỏ, từ thu thập dữ liệu, huấn luyện mô hình, xây dựng API cho đến giao diện người dùng.
+P[043] [Heading 2]: 1.2. Mục tiêu đề tài
+P[044] [List Paragraph]: Xây dựng mô hình phân loại bệnh trên lá cây dựa trên bộ dữ liệu PlantVillage (38 nhóm bệnh/khỏe mạnh trên nhiều loại cây trồng), trả về nhãn bệnh kèm độ tin cậy.
+P[045] [List Paragraph]: Xây dựng Backend API bằng FastAPI để phục vụ mô hình, có xác thực người dùng và phân quyền theo vai trò.
+P[046] [List Paragraph]: Xây dựng giao diện Frontend cho người dùng tải/chụp ảnh và xem kết quả chẩn đoán.
+P[047] [List Paragraph]: Áp dụng các công cụ quản lý dự án phần mềm đã học: phân chia công việc (WBS), quản lý mã nguồn bằng Git, kiểm thử tự động, quản lý rủi ro.
+P[048] [Heading 2]: 1.3. Phạm vi thực hiện
+P[049] [Normal]: Do thời gian đồ án có giới hạn (8 tuần) và nhóm gồm có 3 thành viên, nhóm xác định phạm vi tập trung vào phần lõi: nhận diện bệnh, quản lý tài khoản/phân quyền cơ bản, và một số chức năng mở rộng vừa sức (quản lý trang trại, giải thích mô hình bằng Grad-CAM, quy trình duyệt nội dung). Nhóm không đặt mục tiêu xây dựng một sản phẩm thương mại hoàn chỉnh; các phần như bảo mật nâng cao, giám sát hệ thống, container hóa được thực hiện ở mức đủ để minh họa hiểu biết, không theo chuẩn triển khai thực tế quy mô lớn.
+P[051] [Heading 1]: CHƯƠNG 2. PHÂN CÔNG CÔNG VIỆC VÀ TIẾN ĐỘ
+P[052] [Heading 2]: 2.1. Phân công nhóm
+P[053] [Heading 2]: 2.2. Kế hoạch 8 tuần và tiến độ thực tế
+P[054] [Normal]: Nhóm lập kế hoạch theo tuần ngay từ đầu, chia rõ việc của từng thành viên giữa 3 mảng. Bảng dưới đây tóm tắt kế hoạch ban đầu và mức độ hoàn thành tính đến thời điểm báo cáo giữa kỳ.
+P[055] [Normal]: Nhóm bám sát với kế hoạch ban đầu, riêng phần huấn luyện mô hình mở rộng thêm so với dự kiến (thử nghiệm 3 kiến trúc mạng thay vì 1 kiến trúc như ban đầu).
+P[057] [Heading 1]: CHƯƠNG 3. PHÂN TÍCH YÊU CẦU
+P[058] [Heading 2]: 3.1. Đối tượng sử dụng
+P[059] [Normal]: Hệ thống phân biệt 5 nhóm người dùng, dựa trên nhu cầu sử dụng thực tế mà nhóm phân tích được:
+P[060] [Heading 2]: 3.2. Chức năng chính (yêu cầu chức năng)
+P[061] [List Paragraph]: Đăng ký, đăng nhập, phân quyền theo vai trò.
+P[062] [List Paragraph]: Tải ảnh hoặc chụp ảnh lá cây, nhận kết quả chẩn đoán kèm độ tin cậy và Top-3 khả năng cao nhất.
+P[063] [List Paragraph]: Cảnh báo khi ảnh không phải lá cây (phát hiện ảnh ngoài phân phối dữ liệu huấn luyện).
+P[064] [List Paragraph]: Lưu và xem lại lịch sử các lần chẩn đoán.
+P[065] [List Paragraph]: Quản lý trang trại và gán kết quả chẩn đoán theo từng trang trại.
+P[066] [List Paragraph]: Tra cứu thông tin và cách xử lý cho từng loại bệnh.
+P[067] [List Paragraph]: Kỹ thuật viên gửi đề xuất chỉnh sửa nội dung bệnh, Admin xem xét và phê duyệt.
+P[068] [List Paragraph]: Giải thích trực quan kết quả mô hình bằng ảnh nhiệt Grad-CAM.
+P[069] [Heading 2]: 3.3. Yêu cầu phi chức năng
+P[070] [List Paragraph]: Thời gian phản hồi chẩn đoán ở mức chấp nhận được cho việc demo (dưới 1 giây với 1 mô hình).
+P[071] [List Paragraph]: Mật khẩu được băm (không lưu dạng thô), có cơ chế đăng xuất thu hồi phiên đăng nhập.
+P[072] [List Paragraph]: Có kiểm thử tự động cho các luồng nghiệp vụ chính.
+P[073] [Heading 1]: CHƯƠNG 4. KẾT QUẢ PHẦN HỌC MÁY (ML)
+P[074] [Heading 2]: 4.1. Dữ liệu
+P[075] [Normal]: Nhóm sử dụng bộ dữ liệu chuẩn quốc tế **PlantVillage** (tải qua HuggingFace: mohanty/PlantVillage), biến thể ảnh màu RGB gốc:
+P[076] [Normal]: + Quy mô: 54.305 ảnh chụp lá cây trên nền đồng nhất.
+P[077] [Normal]: + Số lớp phân loại:b38 lớp, bao gồm 14 loài cây nông nghiệp phổ biến (Táo, Việt quất, Anh đào, Ngô, Nho, Cam, Đào, Ớt chuông, Khoai tây, Mâm xôi, Đậu nành, Bí ngô, Dâu tây, Cà chua) ở cả trạng thái khỏe mạnh lẫn các tình trạng bệnh lý do vi khuẩn, nấm hoặc virus.
+P[078] [Normal]: + Chiến lược phân chia (Data Split):
+P[079] [List Paragraph]: Tỷ lệ phân chia: **70% Huấn luyện (Train) — 15% Kiểm định (Validation) — 15% Kiểm thử độc lập (Test).
+P[080] [List Paragraph]: Cố định `seed = 42` để đảm bảo tính tái lập (reproducibility) trong toàn bộ thực nghiệm.
+P[081] [Normal]: + Tăng cường dữ liệu (Data Augmentation):
+P[082] [List Paragraph]: Chuyển đổi kích thước chuẩn: Resize & CenterCrop
+P[083] [List Paragraph]: Áp dụng biến đổi ngẫu nhiên trên tập Train
+P[084] [Heading 2]: 4.2. Mô hình đã huấn luyện
+P[085] [Normal]: Ban đầu kế hoạch chỉ huấn luyện 1 mô hình. Trong quá trình làm, nhóm ML thử nghiệm thêm 2 kiến trúc nhẹ khác để so sánh, nhằm chọn ra phương án cân bằng giữa độ chính xác và tốc độ suy luận. Kết quả trên tập kiểm thử (8.582 ảnh):
+P[086] [Normal]: Cả 3 mô hình đều đạt độ chính xác cao trên tập kiểm thử vì bộ dữ liệu PlantVillage có nền ảnh khá đồng nhất (chụp trong điều kiện kiểm soát). Đây là một hạn chế nhóm đã ý thức được — độ chính xác này khó đạt được trên ảnh chụp thực tế ngoài đồng ruộng (nền phức tạp, ánh sáng thay đổi). Nhóm đã ghi nhận đây là hướng cần lưu ý, không khẳng định mô hình "chính xác tuyệt đối" trong thực tế.
+P[087] [Heading 2]: 4.3. Phát hiện ảnh ngoài phân phối (Out-of-Distribution)
+P[088] [Normal]: Vì mô hình chỉ được huấn luyện trên ảnh lá cây, nếu người dùng lỡ chụp ảnh khác (tay, nền đất, vật thể ngẫu nhiên), mô hình có thể vẫn đưa ra một dự đoán với độ tin cậy cao một cách sai lệch. Nhóm áp dụng một số chỉ số đơn giản (độ tin cậy thấp, khoảng cách giữa nhãn hạng 1 và hạng 2 quá nhỏ) để gắn cờ cảnh báo cho những trường hợp này, thay vì luôn hiển thị kết quả như một chẩn đoán chắc chắn.
+P[089] [Heading 2]: 4.4. Grad-CAM
+P[090] [Normal]: Nhóm hiện thực thuật toán Grad-CAM (Selvaraju et al., 2017) để trực quan hoá vùng ảnh mà mô hình chú ý đến khi đưa ra dự đoán, giúp người dùng (đặc biệt là kỹ thuật viên) có cơ sở đánh giá độ tin cậy của kết quả thay vì chỉ nhận một con số phần trăm.
+P[091] [Heading 2]: 4.5 So sánh 3 backbone model
+P[092] [Normal]: Đã train và so sánh 3 backbone trên cùng test set (8,582 ảnh):
+P[093] [Normal]: Kết luận: ResNet50 đạt hiệu quả tốt nhất nhưng chậm hơn, EfficientNet-B0 cân bằng giữa tốc độ và độ chính xác, MobileNetV2 nhanh nhất nhưng độ chính xác thấp nhất.
+P[094] [Heading 2]: 4.6 Temperature Scaling (Calibration)
+P[095] [Normal]: - Tối ưu temperature trên validation set
+P[096] [Normal]: - File: ml/src/calibration.py
+P[097] [Normal]: - Temperature file: temperature_{suffix}.json
+P[098] [Heading 2]: 4.7 Kết quả OOD Detection chi tiết
+P[099] [Normal]: Nhóm so sánh 4 phương pháp phát hiện OOD trên cùng tập dữ liệu:
+P[101] [Normal]: Dùng Ensemble Disagreement (KL-divergence trung bình giữa 3 backbone) vì đạt AUROC cao nhất và FPR thấp nhất. Ngưỡng được xác định theo percentile 95 trên tập ID (in-distribution), lưu tại ml/outputs/ood_threshold.json làm nguồn sự thật duy nhất cho cả ML lẫn Backend.
+P[104] [Heading 1]: CHƯƠNG 5. KẾT QUẢ PHẦN BACKEND
+P[105] [Heading 2]: 5.1. Kiến trúc tổng quan
+P[106] [Normal]: Backend được xây dựng bằng FastAPI, theo mô hình phân lớp quen thuộc: lớp API tiếp nhận request, lớp Service xử lý nghiệp vụ, lớp CRUD thao tác cơ sở dữ liệu qua SQLAlchemy. Cách chia lớp này nhóm học được từ tài liệu FastAPI chính thức và áp dụng để mã nguồn dễ đọc, dễ phân công giữa các thành viên.
+P[107] [Heading 2]: 5.2. Cơ sở dữ liệu
+P[108] [Normal]: Cơ sở dữ liệu gồm các bảng chính: users, farms, farm_members, disease_info, disease_proposals, scans, scan_topk, model_versions và một số bảng phụ trợ. Quan hệ chính: một Manager sở hữu nhiều Farm; một Farm có nhiều thành viên (nông dân được gán vào); mỗi lượt quét (Scan) thuộc về một người dùng và có thể gắn với một Farm.
+P[109] [Heading 2]: 5.3. Xác thực và phân quyền
+P[110] [Normal]: Hệ thống dùng JWT với 2 loại token: access token (thời hạn ngắn, 15 phút, dùng cho mọi request) và refresh token (thời hạn dài hơn, 7 ngày, lưu trong cookie HttpOnly để hạn chế bị đọc trộm qua JavaScript). Phân quyền theo 4 vai trò lưu trong cơ sở dữ liệu (user, manager, technician, admin), kết hợp với khách vãng lai (không cần tài khoản) cho chức năng chẩn đoán cơ bản.
+P[111] [Heading 2]: 5.4. Các nhóm API đã hoàn thành
+P[112] [List Paragraph]: Xác thực: đăng ký, đăng nhập, làm mới token, đăng xuất, lấy thông tin tài khoản.
+P[113] [List Paragraph]: Chẩn đoán: tải ảnh và nhận kết quả, có thể gắn vào trang trại.
+P[114] [List Paragraph]: Lịch sử: xem, xem chi tiết, xoá lượt quét.
+P[115] [List Paragraph]: Quản lý trang trại và thành viên trang trại (dành cho Manager).
+P[116] [List Paragraph]: Quản lý tài khoản cấp dưới (Admin tạo Manager/Technician; Manager tạo nông dân).
+P[117] [List Paragraph]: Tra cứu và quản trị nội dung bệnh, quy trình đề xuất – phê duyệt.
+P[118] [Heading 2]: 5.5. Kiểm thử
+P[119] [Normal]: Nhóm viết kiểm thử tự động bằng PyTest cho các luồng nghiệp vụ chính (đăng ký/đăng nhập, phân quyền, CRUD trang trại, chẩn đoán, đề xuất nội dung). Tại thời điểm báo cáo, bộ kiểm thử có khoảng 280 trường hợp kiểm thử, phần lớn đạt (pass); một vài trường hợp còn skip do phụ thuộc vào phần chưa hoàn thiện (thống kê, quản lý phiên bản mô hình). Nhóm xem đây là công cụ để tự tin hơn khi sửa code mà không làm hỏng phần đã chạy, hơn là một chỉ tiêu để khoe số lượng.
+P[121] [Heading 1]: CHƯƠNG 6. KẾT QUẢ PHẦN FRONTEND
+P[122] [Heading 2]: 6.1. Cách tiếp cận
+P[123] [Normal]: Frontend xây dựng bằng React (Vite). Do hệ thống có nhiều vai trò với giao diện khác nhau khá nhiều (đặc biệt là Admin), nhóm quyết định tách thành 2 ứng dụng độc lập: một ứng dụng chính phục vụ Khách/Nông dân/Manager/Technician, một ứng dụng riêng cho Admin. Đây là lựa chọn nhóm cân nhắc giữa việc dùng chung 1 ứng dụng với nhiều route ẩn/hiện theo quyền, và tách riêng — nhóm chọn tách riêng để việc phân quyền ở giao diện đơn giản hơn, chấp nhận đánh đổi là phải duy trì 2 project.
+P[124] [Heading 2]: 6.2. Các trang đã hoàn thành
+P[125] [List Paragraph]: Đăng nhập / Đăng ký.
+P[126] [List Paragraph]: Trang chẩn đoán ảnh (tải ảnh, xem kết quả, độ tin cậy, Top-3).
+P[127] [List Paragraph]: Lịch sử các lần quét.
+P[128] [List Paragraph]: Quản lý trang trại và thành viên (Manager).
+P[129] [List Paragraph]: Trang quản trị: quản lý tài khoản, quản lý nội dung bệnh (Admin).
+P[130] [Heading 2]: 6.3. Các trang đang hoàn thiện
+P[131] [List Paragraph]: Xem ảnh giải thích Grad-CAM trong giao diện.
+P[132] [List Paragraph]: Trang duyệt đề xuất nội dung bệnh (Admin).
+P[133] [List Paragraph]: Trang thống kê theo trang trại và thống kê toàn hệ thống.
+P[135] [Heading 1]: KẾT LUẬN
+P[136] [Normal]: Tính đến thời điểm báo cáo giữa kỳ, nhóm đã hoàn thành phần lớn các chức năng cốt lõi của đề tài: huấn luyện và so sánh 3 mô hình nhận diện bệnh trên lá cây với độ chính xác trên 97% trên tập kiểm thử, xây dựng Backend API đầy đủ xác thực và phân quyền, và giao diện Frontend cho luồng sử dụng chính. Một số chức năng mở rộng (thống kê, duyệt nội dung, xem Grad-CAM trên giao diện) đang trong quá trình hoàn thiện.
+P[138] [Normal]: Từ nay đến khi kết thúc đồ án, nhóm dự kiến hoàn thành các phần việc sau:
+P[139] [List Paragraph]: Hoàn thiện quy trình duyệt đề xuất nội dung bệnh (giao diện Admin).
+P[140] [List Paragraph]: Hoàn thiện trang thống kê theo trang trại và thống kê toàn hệ thống.
+P[141] [List Paragraph]: Kiểm thử tích hợp toàn bộ hệ thống với đầy đủ 5 vai trò người dùng.
+P[142] [List Paragraph]: Thử triển khai thử nghiệm (deploy) để phục vụ demo trực tiếp.
+P[143] [List Paragraph]: Hoàn thiện báo cáo cuối kỳ và chuẩn bị nội dung bảo vệ.
+P[144] [Normal]: Phần Học máy mở rộng hơn dự kiến ban đầu (3 mô hình thay vì 1); vì vậy nếu thời gian còn lại không đủ để hoàn thiện toàn bộ các trang giao diện đang dang dở, nhóm sẽ ưu tiên hoàn thiện phần lõi (chẩn đoán, lịch sử, quản lý trang trại) trước, các phần nâng cao (thống kê, duyệt đề xuất) sẽ làm ở mức tối thiểu để demo được luồng hoạt động.
+P[146] [Normal]: Qua quá trình thực hiện, nhóm rút ra được kinh nghiệm quan trọng nhất là: phạm vi công việc rất dễ mở rộng ngoài kế hoạch ban đầu (như việc thử 3 mô hình thay vì 1) nếu không kiểm soát chặt — đây là điều nhóm sẽ cân nhắc kỹ hơn ở phần việc còn lại, ưu tiên hoàn thiện đúng những gì đã cam kết trước khi làm thêm.
+P[151] [Heading 1]: TÀI LIỆU THAM KHẢO
+P[152] [Normal]: 1. Mohanty, S. P., Hughes, D. P., & Salathé, M. (2016). Using deep learning for image-based plant disease detection. Frontiers in Plant Science, 7, 1419.
+P[153] [Normal]: 2. Selvaraju, R. R., Cogswell, M., Das, A., Vedantam, R., Parikh, D., & Batra, D. (2017). Grad-CAM: Visual explanations from deep networks via gradient-based localization. Proceedings of the IEEE ICCV.
+P[154] [Normal]: 3. Guo, C., Pleiss, G., Sun, Y., & Weinberger, K. Q. (2017). On calibration of modern neural networks. Proceedings of ICML.
+P[155] [Normal]: 4. FastAPI Documentation. https://fastapi.tiangolo.com/
+P[156] [Normal]: 5. PostgreSQL Documentation. https://www.postgresql.org/docs/
+
+--- TABLE 0 (4 rows, 4 cols) ---
+R0: STT | Họ và tên | MSSV | Nhiệm vụ chính
+R1: 1 | Nguyễn Quốc Đạt | N23DVCN010 | Thu thập dữ liệu, huấn luyện mô hình, đánh giá, Grad-CAM
+R2: 2 | Nguyễn Thành Long | N23DVCN035 | Xây dựng giao diện Frontend, tích hợp API, thiết kế UI/UX
+R3: 3 | Nguyễn Đình Thiện | N23DVCN055 | Thiết kế CSDL, xây dựng API Backend, xác thực & phân quyền
+
+--- TABLE 1 (9 rows, 3 cols) ---
+R0: Tuần | Nội dung kế hoạch | Tình trạng
+R1: 1 | Chọn tập dữ liệu, thiết lập backend (Auth, JWT, RBAC), khởi tạo Frontend | Hoàn thành
+R2: 2 | Chuẩn hoá dữ liệu, thiết kế đầy đủ CSDL, CRUD Farm/Disease Info | Hoàn thành
+R3: 3 | Huấn luyện mô hình baseline, kết nối API /predict với model thật | Hoàn thành
+R4: 4 | Quản lý tài khoản cấp dưới (Manager tạo nông dân), gán vào trang trại | Hoàn thành
+R5: 5 | Gắn kết quả chẩn đoán vào trang trại, phát hiện ảnh không hợp lệ (OOD), kỹ thuật viên gửi đề xuất nội dung bệnh | Đang hoàn thiện
+R6: 6 | Quy trình duyệt đề xuất, thống kê, quản lý phiên bản mô hình | Đang hoàn thiện
+R7: 7 | Kiểm thử tích hợp toàn hệ thống, sửa lỗi, triển khai thử | Đang thực hiện
+R8: 8 | Hoàn thiện báo cáo, chuẩn bị bảo vệ | Chưa bắt đầu
+
+--- TABLE 2 (6 rows, 2 cols) ---
+R0: Đối tượng | Nhu cầu chính
+R1: Khách vãng lai (chưa đăng nhập) | Thử nhanh tính năng chẩn đoán, không cần tạo tài khoản
+R2: Nông dân (User) | Chẩn đoán, xem lại lịch sử các lần quét của mình
+R3: Quản lý trang trại (Manager) | Quản lý trang trại, tạo tài khoản cho nông dân thuộc quyền, xem thống kê
+R4: Kỹ thuật viên (Technician) | Xem giải thích của mô hình (Grad-CAM), đóng góp cập nhật nội dung bệnh
+R5: Quản trị viên (Admin) | Quản lý toàn bộ nội dung, tài khoản, phiên bản mô hình AI
+
+--- TABLE 3 (4 rows, 3 cols) ---
+R0: Kiến trúc | Accuracy | F1-score (macro)
+R1: MobileNetV2 | 97,69% | 0,964
+R2: EfficientNet-B0 | 98,26% | 0,972
+R3: ResNet50 | 98,28% | 0,975
+
+--- TABLE 4 (5 rows, 3 cols) ---
+R0: Phương pháp | AUROC | FPR@95TPR
+R1: MSP (Maximum Softmax Probability) | 0,982 | 10%
+R2: Entropy | 0,985 | 10%
+R3: Energy Score | 0,949 | 31%
+R4: Ensemble Disagreement | 0,991 | 3%

@@ -202,8 +202,10 @@ def activate_version(
 
     if old_version is not None:
         old_version.is_active = False
+        db.flush()
 
     version.is_active = True
+    db.flush()
     if actor_id is not None:
         audit_model_activated(
             db,

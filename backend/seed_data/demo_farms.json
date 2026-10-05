@@ -8,5 +8,16 @@
     "owner_username": "manager_user",
     "name": "Vườn rau nhà kính demo",
     "location_text": "Đức Trọng, Lâm Đồng"
+  },
+  {
+    "owner_username": "manager",
+    "name": "Trang trại mẫu Đà Lạt (Manager)",
+    "location_text": "Đà Lạt, Lâm Đồng"
+  },
+  {
+    "owner_username": "manager",
+    "name": "Khu nông nghiệp CNC (Manager)",
+    "location_text": "Lạc Dương, Lâm Đồng"
   }
 ]
+

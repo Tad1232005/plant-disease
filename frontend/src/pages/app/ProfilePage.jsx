@@ -46,10 +46,21 @@ export default function ProfilePage() {
 
     setLoading(true)
     try {
-      await authApi.changePassword({
-        current_password: currentPassword,
-        new_password: newPassword,
-      })
+      const isDemoSession = localStorage.getItem('plantcare_access_token') === 'plantcare_demo_session'
+      if (!isDemoSession) {
+        await authApi.changePassword({
+          current_password: currentPassword,
+          new_password: newPassword,
+        })
+      } else {
+        if (currentPassword !== '123456') {
+          setMessage({
+            type: 'error',
+            text: isVi ? 'Mật khẩu hiện tại không đúng (mật khẩu demo là 123456).' : 'Current password is incorrect (demo password is 123456).',
+          })
+          return
+        }
+      }
       setMessage({
         type: 'success',
         text: isVi

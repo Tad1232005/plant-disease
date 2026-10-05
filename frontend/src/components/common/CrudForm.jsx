@@ -14,8 +14,16 @@ function createSchema(fields, language) {
       return
     }
 
-    let rule = z.string()
-    if (field.required !== false) rule = rule.trim().min(1, language === 'vi' ? `Vui lòng nhập ${field.label.toLowerCase()}` : `Enter ${field.label.toLowerCase()}`)
+    if (field.required === false) {
+      if (field.type === 'email') {
+        shape[field.name] = z.string().trim().email(language === 'vi' ? 'Email chưa đúng định dạng' : 'Enter a valid email address').optional().or(z.literal(''))
+      } else {
+        shape[field.name] = z.string().optional()
+      }
+      return
+    }
+
+    let rule = z.string().trim().min(1, language === 'vi' ? `Vui lòng nhập ${field.label.toLowerCase()}` : `Enter ${field.label.toLowerCase()}`)
     if (field.minLength) rule = rule.min(field.minLength, language === 'vi' ? `${field.label} cần ít nhất ${field.minLength} ký tự` : `${field.label} must have at least ${field.minLength} characters`)
     if (field.type === 'email') rule = rule.email(language === 'vi' ? 'Email chưa đúng định dạng' : 'Enter a valid email address')
     shape[field.name] = rule

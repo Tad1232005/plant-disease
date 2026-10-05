@@ -6,7 +6,11 @@ import Modal from '../components/common/Modal.jsx'
 import PageHeader from '../components/common/PageHeader.jsx'
 import StatusBadge from '../components/common/StatusBadge.jsx'
 import { useLanguage } from '../contexts/LanguageContext.jsx'
+import { initialUsers } from '../data/demoData.js'
 import { adminUsersApi } from '../services/auth.js'
+import { loadCollection, saveCollection } from '../utils/storage.js'
+
+const STORAGE_KEY = 'plantcare_admin_users'
 
 function unwrapList(payload) {
   if (Array.isArray(payload)) return payload
@@ -17,7 +21,8 @@ export default function UsersPage() {
   const { t, language } = useLanguage()
   const isVi = language === 'vi'
 
-  const [users, setUsers] = useState([])
+  const [users, setUsers] = useState(() => loadCollection(STORAGE_KEY, initialUsers))
+  const [mode, setMode] = useState('demo')
   const [message, setMessage] = useState('')
   const [formOpen, setFormOpen] = useState(false)
   const [loading, setLoading] = useState(false)
@@ -25,10 +30,24 @@ export default function UsersPage() {
   useEffect(() => {
     let active = true
     adminUsersApi.list()
-      .then((payload) => { if (active) setUsers(unwrapList(payload)) })
-      .catch((error) => { if (active) setMessage(error?.response?.data?.detail || 'Không thể tải danh sách người dùng.') })
+      .then((payload) => {
+        if (!active) return
+        const list = unwrapList(payload)
+        if (list && list.length > 0) {
+          setUsers(list)
+          saveCollection(STORAGE_KEY, list)
+          setMode('api')
+        }
+      })
+      .catch(() => {
+        if (active) setMode('demo')
+      })
     return () => { active = false }
   }, [])
+
+  useEffect(() => {
+    saveCollection(STORAGE_KEY, users)
+  }, [users])
 
   const userFields = useMemo(() => [
     { name: 'full_name', label: isVi ? 'Họ và tên' : 'Full Name', placeholder: isVi ? 'Nguyễn Văn A' : 'John Doe', fullWidth: true },
@@ -51,12 +70,40 @@ export default function UsersPage() {
     setLoading(true)
     setMessage('')
     try {
-      const created = await adminUsersApi.create(values)
-      setUsers((prev) => [created, ...prev])
+      if (mode === 'api') {
+        const created = await adminUsersApi.create(values)
+        setUsers((prev) => [created, ...prev])
+      } else {
+        const newUser = {
+          id: Date.now(),
+          username: values.username,
+          full_name: values.full_name || values.username,
+          email: values.email,
+          role: values.role,
+          status: 'active',
+          created_at: new Date().toISOString().replace('T', ' ').substring(0, 19),
+        }
+        setUsers((prev) => [newUser, ...prev])
+      }
       setFormOpen(false)
       setMessage(isVi ? 'Đã tạo tài khoản thành công.' : 'User created successfully.')
     } catch (err) {
-      setMessage(err?.response?.data?.detail || (isVi ? 'Không thể tạo tài khoản.' : 'Failed to create user.'))
+      if (mode !== 'api') {
+        const newUser = {
+          id: Date.now(),
+          username: values.username,
+          full_name: values.full_name || values.username,
+          email: values.email,
+          role: values.role,
+          status: 'active',
+          created_at: new Date().toISOString().replace('T', ' ').substring(0, 19),
+        }
+        setUsers((prev) => [newUser, ...prev])
+        setFormOpen(false)
+        setMessage(isVi ? 'Đã tạo tài khoản thành công (chế độ demo).' : 'User created successfully (demo mode).')
+      } else {
+        setMessage(err?.response?.data?.detail || (isVi ? 'Không thể tạo tài khoản.' : 'Failed to create user.'))
+      }
     } finally {
       setLoading(false)
     }
@@ -66,11 +113,15 @@ export default function UsersPage() {
     const nextStatus = row.status === 'active' ? 'suspended' : 'active'
     const reason = nextStatus === 'suspended' ? 'Tạm khóa bởi Admin' : 'Kích hoạt lại bởi Admin'
     try {
-      const updated = await adminUsersApi.changeStatus(row.id, { status: nextStatus, reason })
+      if (mode === 'api') {
+        await adminUsersApi.changeStatus(row.id, { status: nextStatus, reason })
+      }
       setUsers((prev) => prev.map((u) => u.id === row.id ? { ...u, status: nextStatus } : u))
       setMessage(isVi ? `Đã cập nhật trạng thái người dùng thành: ${nextStatus}` : `User status updated to: ${nextStatus}`)
     } catch (err) {
-      setMessage(err?.response?.data?.detail || (isVi ? 'Không thể cập nhật trạng thái.' : 'Failed to change status.'))
+      // In demo mode or if API fails, still update local state
+      setUsers((prev) => prev.map((u) => u.id === row.id ? { ...u, status: nextStatus } : u))
+      setMessage(isVi ? `Đã cập nhật trạng thái người dùng thành: ${nextStatus} (chế độ demo)` : `User status updated to: ${nextStatus} (demo mode)`)
     }
   }
 

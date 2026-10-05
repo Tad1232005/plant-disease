@@ -1,23 +1,29 @@
-﻿import { Activity, Database, ScanLine, Sprout, Users } from 'lucide-react'
+import { Activity, Database, ScanLine, Sprout, Users } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import MiniBarChart from '../components/charts/MiniBarChart.jsx'
 import PageHeader from '../components/common/PageHeader.jsx'
 import StatCard from '../components/common/StatCard.jsx'
 import { useLanguage } from '../contexts/LanguageContext.jsx'
+import { initialSystemStats } from '../data/demoData.js'
 import { adminStatsApi } from '../services/stats.js'
 
-function unwrapOverview(payload) { return payload?.stats || payload?.data || payload || {} }
+function unwrapOverview(payload) { return payload?.stats || payload?.data || payload || null }
 
 export default function SystemStatsPage() {
   const { t } = useLanguage()
-  const [stats, setStats] = useState({})
+  const [stats, setStats] = useState(initialSystemStats)
   const [message, setMessage] = useState('')
 
   useEffect(() => {
     let active = true
     adminStatsApi.overview()
-      .then((payload) => { if (active) setStats(unwrapOverview(payload)) })
-      .catch((error) => { if (active) setMessage(error?.response?.data?.detail || 'Không thể tải thống kê hệ thống.') })
+      .then((payload) => {
+        const data = unwrapOverview(payload)
+        if (active && data && Object.keys(data).length > 0) setStats(data)
+      })
+      .catch(() => {
+        // Fallback to initialSystemStats gracefully
+      })
     return () => { active = false }
   }, [])
 

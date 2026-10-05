@@ -6,6 +6,8 @@ import StatusBadge from '../../components/common/StatusBadge.jsx'
 import { usePreferences } from '../../contexts/PreferencesContext.jsx'
 import { scansApi } from '../../api/scans.js'
 import { getScanGradCam } from '../../api/predict.js'
+import { scanHistory } from '../../data/demoData.js'
+import { loadCollection } from '../../utils/storage.js'
 
 function friendlyLabel(label = '') {
   return String(label).replaceAll('_', ' ').replace(/\b\w/g, (letter) => letter.toUpperCase())
@@ -33,14 +35,20 @@ export default function ScanDetailPage() {
       .then((data) => {
         if (!active) return
         setScan(data)
-        // Nếu có scan, thử nạp gradcam
         getScanGradCam(id).then((url) => {
           if (active) setGradcamUrl(url)
         }).catch(() => {})
       })
       .catch((err) => {
         if (!active) return
-        setError(err?.response?.data?.detail || (isVi ? 'Không tìm thấy ca quét này.' : 'Scan not found.'))
+        const localItems = loadCollection('plantcare_scan_history', scanHistory)
+        const localFound = localItems.find((item) => String(item.id) === String(id))
+        if (localFound) {
+          setScan(localFound)
+          if (localFound.gradcam_url) setGradcamUrl(localFound.gradcam_url)
+        } else {
+          setError(err?.response?.data?.detail || (isVi ? 'Không tìm thấy ca quét này.' : 'Scan not found.'))
+        }
       })
       .finally(() => {
         if (active) setLoading(false)

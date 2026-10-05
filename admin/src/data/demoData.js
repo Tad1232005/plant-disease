@@ -86,10 +86,103 @@ export const scanHistory = [
   { id: 4, date: '10/08/2026 15:31', farm: 'Ruộng ngô C3', result: 'Gỉ sắt ngô', confidence: 91.2, severity: 'high' },
 ]
 
+export const initialUsers = [
+  {
+    id: 101,
+    username: 'farmer',
+    full_name: 'Nguyễn Văn An',
+    email: 'farmer@plantcare.vn',
+    role: 'user',
+    status: 'active',
+    created_at: '2026-08-10 08:30:00',
+  },
+  {
+    id: 102,
+    username: 'technician',
+    full_name: 'Trần Minh Khoa',
+    email: 'technician@plantcare.vn',
+    role: 'technician',
+    status: 'active',
+    created_at: '2026-08-11 09:15:00',
+  },
+  {
+    id: 103,
+    username: 'manager',
+    full_name: 'Lê Hoàng Nam',
+    email: 'manager@plantcare.vn',
+    role: 'manager',
+    status: 'active',
+    created_at: '2026-08-12 10:20:00',
+  },
+  {
+    id: 104,
+    username: 'admin',
+    full_name: 'Quản trị viên',
+    email: 'admin@plantcare.vn',
+    role: 'admin',
+    status: 'active',
+    created_at: '2026-08-01 07:00:00',
+  },
+]
+
+export const initialModelVersions = [
+  {
+    id: 1,
+    version_name: 'mobilenet_v2_primary_v2.1',
+    model_type: 'mobilenet_v2',
+    temperature: 1.042,
+    accuracy: 0.9482,
+    status: 'production',
+    is_active: true,
+    is_enabled: true,
+    created_at: '2026-09-15 14:20:00',
+  },
+  {
+    id: 2,
+    version_name: 'efficientnet_b0_advanced_v1.8',
+    model_type: 'efficientnet_b0',
+    temperature: 0.985,
+    accuracy: 0.9315,
+    status: 'staging',
+    is_active: false,
+    is_enabled: true,
+    created_at: '2026-09-28 11:05:00',
+  },
+  {
+    id: 3,
+    version_name: 'resnet50_experimental_v1.0',
+    model_type: 'resnet50',
+    temperature: null,
+    accuracy: 0.912,
+    status: 'inactive',
+    is_active: false,
+    is_enabled: false,
+    created_at: '2026-08-20 09:30:00',
+  },
+]
+
+export const initialSystemStats = {
+  total_users: 29,
+  total_scans: 148,
+  total_farms: 4,
+  active_model: 'mobilenet_v2_primary_v2.1',
+  scans_by_day: [14, 22, 18, 29, 31, 24, 16],
+  users_by_role: [
+    { role: 'user', count: 18, name: 'Nông dân' },
+    { role: 'technician', count: 5, name: 'Kỹ thuật viên' },
+    { role: 'manager', count: 4, name: 'Quản lý' },
+    { role: 'admin', count: 2, name: 'Quản trị viên' },
+  ],
+  disease_counts: [
+    { name: 'Mốc sương cà chua', count: 42 },
+    { name: 'Đốm vòng khoai tây', count: 35 },
+    { name: 'Gỉ sắt ngô', count: 29 },
+    { name: 'Lá khỏe mạnh', count: 22 },
+  ],
+}
+
 export const initialProposals = [
   { id: 501, disease_name: 'Đốm lá vi khuẩn cà chua', label_key: 'tomato_bacterial_spot', plant: 'Cà chua', symptoms: 'Đốm nhỏ màu nâu đen, có quầng vàng quanh vết bệnh.', treatment: 'Loại bỏ lá bệnh, hạn chế làm ướt lá và vệ sinh dụng cụ.', evidence: 'Quan sát trên 4 mẫu tại Vườn cà chua A1.', proposer_name: 'Trần Minh Khoa', status: 'pending', created_at: '18/08/2026 09:20' },
   { id: 502, disease_name: 'Khảm lá ớt', label_key: 'pepper_mosaic', plant: 'Ớt', symptoms: 'Lá loang màu và hơi biến dạng.', treatment: 'Cách ly cây nghi nhiễm và kiểm soát côn trùng môi giới.', evidence: 'Đối chiếu 3 ảnh chẩn đoán gần nhất.', proposer_name: 'Trần Minh Khoa', status: 'approved', created_at: '16/08/2026 14:35' },
   { id: 503, disease_name: 'Vàng lá khoai tây', label_key: 'potato_yellow_leaf', plant: 'Khoai tây', symptoms: 'Lá vàng từ mép, sinh trưởng chậm.', treatment: 'Kiểm tra đất và dinh dưỡng trước khi xử lý.', evidence: 'Một mẫu đơn lẻ, cần bổ sung dữ liệu.', proposer_name: 'Nguyễn Hải Nam', status: 'rejected', created_at: '15/08/2026 10:15', admin_note: 'Chưa đủ bằng chứng chuyên môn.' },
 ]
-
-

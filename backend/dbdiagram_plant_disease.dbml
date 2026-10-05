@@ -1,0 +1,346 @@
+// ===================================================
+// PLANT DISEASE DETECTION SYSTEM - DATABASE SCHEMA (DBML)
+// Ready to copy & paste into https://dbdiagram.io
+// Mon hoc: Quan ly Du an Phan mem - GV: Nguyen Thi Bich Nguyen
+// Sinh vien Backend: Nguyen Dinh Thien (N23DVCN055)
+// ===================================================
+
+// ---------------------------------------------------
+// ENUMS & CUSTOM TYPES
+// ---------------------------------------------------
+
+Enum user_role {
+  user [note: 'Nong dan']
+  manager [note: 'Quan ly nong trai']
+  technician [note: 'Ky thuat vien cay trong']
+  admin [note: 'Quan tri he thong']
+}
+
+Enum user_status {
+  active
+  suspended
+}
+
+Enum model_architecture {
+  mobilenet_v2
+  efficientnet_b0
+  resnet50
+}
+
+Enum inference_mode {
+  legacy
+  basic
+  standard
+  advanced
+}
+
+Enum validation_status {
+  accepted
+  low_confidence
+  ambiguous
+  model_error
+}
+
+Enum agreement_status {
+  single_model
+  agreed
+  disagreed
+  degraded
+}
+
+Enum severity_level {
+  low
+  medium
+  high
+}
+
+Enum proposal_status {
+  pending
+  approved
+  rejected
+}
+
+// ---------------------------------------------------
+// 1. IDENTITY & ACCESS MANAGEMENT (AUTH & RBAC)
+// ---------------------------------------------------
+
+Table users {
+  id integer [pk, increment]
+  username varchar(50) [not null, unique]
+  email varchar(100) [unique]
+  password_hash varchar(255) [not null, note: 'Argon2 hash']
+  role user_role [not null, default: 'user']
+  full_name varchar(100)
+  created_by integer [note: 'Admin tao Tech/Manager; Manager tao User']
+  token_version integer [not null, default: 0, note: 'Thu hoi token tuc thi khi tang version']
+  status user_status [not null, default: 'active']
+  created_at timestamp [not null, default: `now()`]
+
+  indexes {
+    role
+    created_by
+  }
+}
+
+Table auth_rate_limits {
+  bucket_key varchar(64) [pk, note: 'Hash tu IP hoac identifier']
+  attempts integer [not null]
+  expires_at timestamptz [not null]
+
+  indexes {
+    expires_at
+  }
+}
+
+Table audit_events {
+  id bigint [pk, increment]
+  actor_id integer [note: 'User thuc hien hanh vi']
+  action varchar(80) [not null, note: 'CREATE_USER, SUSPEND_USER, APPROVE_PROPOSAL, ACTIVATE_MODEL...']
+  resource_type varchar(50) [not null]
+  resource_id varchar(100) [not null]
+  outcome varchar(20) [not null, default: 'success']
+  metadata jsonb [not null, note: 'Thong tin chi tiet audit']
+  created_at timestamptz [not null, default: `now()`]
+
+  indexes {
+    created_at
+    (resource_type, resource_id, created_at)
+  }
+}
+
+// ---------------------------------------------------
+// 2. FARM & MEMBERSHIP MANAGEMENT
+// ---------------------------------------------------
+
+Table farms {
+  id integer [pk, increment]
+  user_id integer [not null, note: 'Owner ID (Role Manager)']
+  name varchar(100) [not null]
+  location_text varchar(255)
+  created_at timestamp [not null, default: `now()`]
+  archived_at timestamp [note: 'Soft delete / Archive trang trai']
+
+  indexes {
+    user_id
+    archived_at
+  }
+}
+
+Table farm_members {
+  id integer [pk, increment]
+  farm_id integer [not null]
+  user_id integer [not null, note: 'Nong dan duoc phan cong']
+  added_by integer [note: 'Manager da them nong dan']
+  created_at timestamp [not null, default: `now()`]
+
+  indexes {
+    (farm_id, user_id) [unique]
+  }
+}
+
+// ---------------------------------------------------
+// 3. AI MODEL REGISTRY & INFERENCE HISTORY
+// ---------------------------------------------------
+
+Table model_versions {
+  id integer [pk, increment]
+  version_name varchar(50) [not null, unique]
+  model_type model_architecture [not null]
+  task varchar(40) [not null, default: 'disease_classification']
+  file_path varchar(255) [not null, note: 'Duong dan checkpoint .pt']
+  classes_path varchar(255)
+  temperature_path varchar(255)
+  temperature float [not null, default: 1.0, note: 'Temperature scaling parameter']
+  sha256 varchar(64) [note: 'Checksum file checkpoint']
+  accuracy float [note: 'Validation accuracy']
+  macro_f1 float [note: 'Validation Macro F1-score']
+  ece float [note: 'Expected Calibration Error']
+  metrics_path varchar(255)
+  is_active boolean [not null, default: false, note: 'Chi 1 version active tren moi kien truc']
+  is_enabled boolean [not null, default: true]
+  created_at timestamp [not null, default: `now()`]
+  updated_at timestamp [not null, default: `now()`]
+
+  indexes {
+    model_type
+    is_enabled
+  }
+}
+
+Table scans {
+  id integer [pk, increment]
+  user_id integer [not null, note: 'Khach vang lai khong luu vao DB']
+  farm_id integer [note: 'Nong trai duoc gan (optional)']
+  image_path varchar(255) [not null]
+  predicted_label varchar(50) [note: 'Lien ket logic voi disease_info.label_key']
+  confidence float
+  is_valid_leaf boolean [not null, default: true, note: 'OOD check: false neu anh khong phai la']
+  gradcam_path varchar(255) [note: 'Heatmap visualization']
+  model_version varchar(50) [note: 'Legacy string version']
+  primary_model_version_id integer [note: 'FK model_versions']
+  inference_mode inference_mode [not null, default: 'legacy']
+  validation_status validation_status [not null, default: 'accepted']
+  rejection_reason varchar(50)
+  agreement_status agreement_status [not null, default: 'single_model']
+  top1_top2_margin float [note: 'Chenh lech do tin cay Top1 va Top2']
+  ensemble_entropy float [note: 'Do hon loan thong tin du doan']
+  js_divergence float [note: 'Jensen-Shannon Divergence do bat dong ensemble']
+  energy_score float [note: 'Energy-based OOD Score']
+  ood_score float
+  policy_version varchar(50)
+  prediction_context jsonb
+  inference_snapshot jsonb
+  created_at timestamp [not null, default: `now()`]
+
+  indexes {
+    user_id
+    farm_id
+    created_at
+    predicted_label
+    primary_model_version_id
+    inference_mode
+    validation_status
+    (user_id, created_at)
+    (farm_id, created_at)
+  }
+}
+
+Table scan_topk {
+  id integer [pk, increment]
+  scan_id integer [not null]
+  label varchar(50) [not null]
+  confidence float [not null]
+  rank integer [not null, note: 'Thu hang 1, 2 hoac 3']
+
+  indexes {
+    scan_id
+    (scan_id, rank) [unique]
+  }
+}
+
+Table scan_model_results {
+  id integer [pk, increment]
+  scan_id integer [not null]
+  model_version_id integer [not null]
+  execution_order integer [not null, note: 'Thu tu thuc thi 1, 2, 3']
+  predicted_label varchar(50)
+  confidence float
+  top1_top2_margin float
+  entropy float
+  energy_score float
+  accepted boolean [not null, default: false]
+  latency_ms float [note: 'Thoi gian suy luan rieng tung model']
+  error_code varchar(50)
+  topk_json text
+  created_at timestamp [not null, default: `now()`]
+
+  indexes {
+    scan_id
+    model_version_id
+    created_at
+    (scan_id, model_version_id) [unique]
+  }
+}
+
+// ---------------------------------------------------
+// 4. DISEASE KNOWLEDGE BASE & WORKFLOW
+// ---------------------------------------------------
+
+Table disease_info {
+  id integer [pk, increment]
+  label_key varchar(50) [not null, unique, note: 'Khop voi 38 nhan cua model AI']
+  disease_name varchar(100) [not null, note: 'Ten tieng Viet']
+  description text
+  treatment text [note: 'Phac do dieu tri va thuoc khuyen nghi']
+  severity_level severity_level [not null, default: 'medium']
+  updated_by integer [note: 'Admin da cap nhat']
+  is_active boolean [not null, default: true]
+  content_version integer [not null, default: 1, note: 'Phien ban noi dung tang dan']
+  created_at timestamp [not null, default: `now()`]
+  updated_at timestamp [not null, default: `now()`]
+
+  indexes {
+    label_key [unique]
+    is_active
+  }
+}
+
+Table disease_proposals {
+  id integer [pk, increment]
+  proposer_id integer [not null, note: 'Technician de xuat']
+  label_key varchar(50) [not null, note: 'Nhan benh can cap nhat']
+  proposal_type varchar(30) [not null, default: 'update_content']
+  base_content_version integer [not null, note: 'Dua tren content_version nao']
+  disease_name varchar(100) [not null]
+  description text
+  treatment text
+  severity_level severity_level [not null]
+  status proposal_status [not null, default: 'pending']
+  reviewer_id integer [note: 'Admin phe duyet']
+  review_note text [note: 'Ly do tu choi hoac ghi chu']
+  created_at timestamptz [not null, default: `now()`]
+  reviewed_at timestamptz
+
+  indexes {
+    (proposer_id, created_at, id)
+    (status, created_at, id)
+  }
+}
+
+// ---------------------------------------------------
+// FOREIGN KEY RELATIONSHIPS
+// ---------------------------------------------------
+
+// User Hierarchy & Management
+Ref: users.created_by > users.id
+
+// Farm Ownership & Membership
+Ref: farms.user_id > users.id
+Ref: farm_members.farm_id > farms.id
+Ref: farm_members.user_id > users.id
+Ref: farm_members.added_by > users.id
+
+// Scans & History
+Ref: scans.user_id > users.id
+Ref: scans.farm_id > farms.id
+Ref: scans.primary_model_version_id > model_versions.id
+
+// Scan Top-K & Detailed Ensemble Results
+Ref: scan_topk.scan_id > scans.id
+Ref: scan_model_results.scan_id > scans.id
+Ref: scan_model_results.model_version_id > model_versions.id
+
+// Disease Info & Proposals
+Ref: disease_info.updated_by > users.id
+Ref: disease_proposals.proposer_id > users.id
+Ref: disease_proposals.reviewer_id > users.id
+
+// Audit Trail
+Ref: audit_events.actor_id > users.id
+
+// ---------------------------------------------------
+// VISUAL TABLE GROUPS (TU DONG GOM MAU TREN DBDIAGRAM)
+// ---------------------------------------------------
+
+TableGroup Auth_And_Identity {
+  users
+  auth_rate_limits
+  audit_events
+}
+
+TableGroup Farm_Management {
+  farms
+  farm_members
+}
+
+TableGroup AI_Inference_And_Scans {
+  scans
+  scan_topk
+  scan_model_results
+  model_versions
+}
+
+TableGroup Disease_Knowledge_Base {
+  disease_info
+  disease_proposals
+}
