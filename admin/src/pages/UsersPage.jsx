@@ -29,6 +29,8 @@ export default function UsersPage() {
   const [statusSaving, setStatusSaving] = useState(false)
   const [detailTarget, setDetailTarget] = useState(null)
   const [detailUser, setDetailUser] = useState(null)
+  // Backend chỉ trả created_by dạng số id; khi mở detail sẽ resolve thêm thông tin người tạo.
+  const [detailCreator, setDetailCreator] = useState(null)
   const [detailLoading, setDetailLoading] = useState(false)
   const [message, setMessage] = useState('')
 
@@ -97,12 +99,23 @@ export default function UsersPage() {
   async function openDetail(row) {
     setDetailTarget(row)
     setDetailUser(row)
+    setDetailCreator(null)
     setDetailLoading(true)
     setMessage('')
     try {
       const fresh = await adminUsersApi.get(row.id)
       setDetailUser(fresh)
       setUsers((items) => items.map((item) => item.id === fresh.id ? fresh : item))
+      // Resolve người tạo: "Tên (Role)" thay vì hiển thị số id.
+      if (fresh.created_by != null) {
+        try {
+          const creator = await adminUsersApi.get(fresh.created_by)
+          setDetailCreator(creator)
+        } catch {
+          // Người tạo có thể đã bị xóa/đổi quyền — giữ id làm fallback, không chặn modal.
+          setDetailCreator(null)
+        }
+      }
     } catch (error) {
       setMessage(getApiError(error, t('users.err_detail')))
     } finally {
@@ -113,12 +126,21 @@ export default function UsersPage() {
   function closeDetail() {
     setDetailTarget(null)
     setDetailUser(null)
+    setDetailCreator(null)
     setDetailLoading(false)
   }
 
   const activeCount = users.filter((item) => item.status === 'active').length
   const suspendedCount = users.filter((item) => item.status === 'suspended').length
   const suspending = statusTarget?.status === 'active'
+
+  // "Tên người tạo (Role)" — fallback về số id nếu không resolve được (vd: đã bị xóa).
+  function formatCreatedBy(user, creator) {
+    if (user.created_by == null) return '—'
+    if (!creator) return `#${user.created_by}`
+    const name = creator.full_name || creator.username
+    return `${name} (${t(`roles.${creator.role}`)})`
+  }
 
   const columns = [
     { key: 'full_name', label: t('users.col_user'), sortable: true, render: (value, row) => <div><p className="font-bold text-slate-800 dark:text-slate-100">{value || row.username}</p><p className="mt-0.5 text-xs text-slate-400 dark:text-slate-500">@{row.username}</p></div> },
@@ -254,7 +276,10 @@ export default function UsersPage() {
             <dt className="font-semibold text-slate-500 dark:text-slate-400">{t('users.col_status')}</dt>
             <dd><StatusBadge value={detailUser.status} /></dd>
             <dt className="font-semibold text-slate-500 dark:text-slate-400">{t('users.detail_created_by')}</dt>
-            <dd className="text-slate-800 dark:text-slate-100">{detailUser.created_by ?? '—'}</dd>
+            <dd className="text-slate-800 dark:text-slate-100">
+              {/* Chưa resolve xong người tạo thì hiển thị "…" thay vì số id để khỏi nháy. */}
+              {detailLoading && detailUser.created_by != null ? '…' : formatCreatedBy(detailUser, detailCreator)}
+            </dd>
           </dl>
         )}
         <div className="mt-6 flex justify-end">

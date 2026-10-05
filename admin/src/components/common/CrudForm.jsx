@@ -64,11 +64,18 @@ function createSchema(fields) {
 
 export default function CrudForm({ fields, defaultValues = {}, onSubmit, onCancel, submitLabel = 'Lưu thay đổi', loading = false }) {
   const { t } = useLanguage()
-  const schema = useMemo(() => createSchema(fields), [fields])
-  const initialValues = useMemo(
-    () => Object.fromEntries(fields.map((field) => [field.name, defaultValues[field.name] ?? field.defaultValue ?? ''])),
-    [defaultValues, fields],
-  )
+  // Các page thường khai báo `fields`/`defaultValues` inline ngay trong render → identity đổi mỗi lần
+  // render. Nếu memo theo identity thì `initialValues` luôn mới → useEffect reset chạy vô hạn
+  // ("Maximum update depth exceeded"). Dùng JSON làm key: chỉ đổi khi nội dung thật sự đổi.
+  const fieldsKey = JSON.stringify(fields)
+  const defaultKey = JSON.stringify(defaultValues)
+  const schema = useMemo(() => createSchema(JSON.parse(fieldsKey)), [fieldsKey])
+  const initialValues = useMemo(() => {
+    const defs = JSON.parse(defaultKey)
+    return Object.fromEntries(
+      JSON.parse(fieldsKey).map((field) => [field.name, defs[field.name] ?? field.defaultValue ?? '']),
+    )
+  }, [fieldsKey, defaultKey])
   const { register, handleSubmit, reset, formState: { errors } } = useForm({
     resolver: zodResolver(schema),
     defaultValues: initialValues,
