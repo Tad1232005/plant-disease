@@ -30,8 +30,37 @@ from app.models.model_version import ModelVersion
 from app.schemas.model_version import RegisterModelVersionRequest
 from app.services.audit_service import audit_model_activated, audit_model_registered
 from app.services.model_artifact_service import load_artifact, SUPPORTED_MODEL_TYPES
+from app.services.model_metrics_service import load_metrics
 
 logger = logging.getLogger(__name__)
+
+
+def resolve_metrics(
+    metrics_path: str | None,
+    bundle_dir: Path,
+) -> dict[str, float | str | None] | None:
+    """Xác định chỉ số đánh giá của bundle.
+
+    Ưu tiên `metrics_path` do Admin truyền vào; nếu không có thì tự tìm
+    `metrics.json` nằm cạnh manifest trong bundle. Trả None khi bundle không kèm
+    số liệu đánh giá (accuracy sẽ NULL đúng như dữ liệu hiện có).
+    """
+    if metrics_path:
+        candidate = Path(metrics_path)
+        if not candidate.is_absolute():
+            raise HTTPException(
+                status_code=422,
+                detail="metrics_path phải là đường dẫn tuyệt đối trên server",
+            )
+    else:
+        candidate = bundle_dir / "metrics.json"
+        if not candidate.is_file():
+            return None
+    try:
+        return load_metrics(candidate)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
 
 
 def list_model_versions(
@@ -81,6 +110,14 @@ def register_version(
     except RuntimeError as exc:
         raise HTTPException(status_code=422, detail=f"Artifact không hợp lệ: {exc}") from exc
 
+    # Chỉ số đánh giá: ưu tiên giá trị Admin gửi, sau đó tới file metrics của bundle.
+    metrics = resolve_metrics(data.metrics_path, Path(spec.file_path).parent)
+
+    def metric_value(explicit: float | None, key: str) -> float | None:
+        if explicit is not None:
+            return explicit
+        return metrics.get(key) if metrics else None
+
     # Chặn trùng version_name
     existing = db.query(ModelVersion).filter(ModelVersion.version_name == spec.version_name).first()
     if existing is not None:
@@ -100,10 +137,10 @@ def register_version(
         sha256=spec.sha256,
         is_active=False,
         is_enabled=True,
-        accuracy=data.accuracy,
-        macro_f1=data.macro_f1,
-        ece=data.ece,
-        metrics_path=data.metrics_path,
+        accuracy=metric_value(data.accuracy, "accuracy"),
+        macro_f1=metric_value(data.macro_f1, "macro_f1"),
+        ece=metric_value(data.ece, "ece"),
+        metrics_path=data.metrics_path or (metrics["metrics_path"] if metrics else None),
     )
     db.add(version)
     db.flush()
