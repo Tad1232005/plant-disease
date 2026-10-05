@@ -4,6 +4,7 @@ import { NavLink, Outlet } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext.jsx'
 import { useLanguage } from '../contexts/LanguageContext.jsx'
 import Brand from './common/Brand.jsx'
+import ConfirmDialog from './common/ConfirmDialog.jsx'
 import LanguageToggle from './common/LanguageToggle.jsx'
 import ThemeToggle from './common/ThemeToggle.jsx'
 
@@ -19,7 +20,7 @@ const navKeys = [
   { to: '/profile', labelKey: 'nav.profile', icon: User },
 ]
 
-function AdminSidebar({ onClose, logout, user }) {
+function AdminSidebar({ onClose, onRequestLogout, user }) {
   const { t } = useLanguage()
 
   return (
@@ -73,7 +74,7 @@ function AdminSidebar({ onClose, logout, user }) {
           <p className="truncate text-xs text-leaf-200/60 dark:text-slate-500">{user.email || 'admin@plantcare.vn'}</p>
         </NavLink>
         <button
-          onClick={logout}
+          onClick={onRequestLogout}
           className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold text-leaf-100/70 transition hover:bg-white/10 hover:text-white dark:text-slate-400 dark:hover:bg-slate-900 dark:hover:text-rose-400"
         >
           <LogOut size={18} /> {t('nav.logout')}
@@ -85,16 +86,24 @@ function AdminSidebar({ onClose, logout, user }) {
 
 export default function AdminLayout() {
   const [mobileOpen, setMobileOpen] = useState(false)
+  const [logoutConfirm, setLogoutConfirm] = useState(false)
   const { user, logout } = useAuth()
   const { t } = useLanguage()
 
+  // Đăng xuất là thao tác "đóng phiên" — xác nhận trước để tránh bấm nhầm làm mất form đang nhập.
+  function confirmLogout() {
+    setLogoutConfirm(false)
+    setMobileOpen(false)
+    logout()
+  }
+
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950">
-      <aside className="fixed inset-y-0 left-0 z-30 hidden w-72 lg:block"><AdminSidebar user={user} logout={logout} /></aside>
+      <aside className="fixed inset-y-0 left-0 z-30 hidden w-72 lg:block"><AdminSidebar user={user} onRequestLogout={() => setLogoutConfirm(true)} /></aside>
       {mobileOpen && (
         <div className="fixed inset-0 z-40 lg:hidden">
           <button className="absolute inset-0 bg-slate-950/40" onClick={() => setMobileOpen(false)} aria-label="Đóng menu" />
-          <aside className="relative h-full w-[85%] max-w-72"><AdminSidebar user={user} logout={logout} onClose={() => setMobileOpen(false)} /></aside>
+          <aside className="relative h-full w-[85%] max-w-72"><AdminSidebar user={user} onRequestLogout={() => setLogoutConfirm(true)} onClose={() => setMobileOpen(false)} /></aside>
         </div>
       )}
       <div className="lg:pl-72">
@@ -114,6 +123,16 @@ export default function AdminLayout() {
         </header>
         <main className="p-4 sm:p-7 lg:p-8"><Outlet /></main>
       </div>
+
+      <ConfirmDialog
+        open={logoutConfirm}
+        onClose={() => setLogoutConfirm(false)}
+        onConfirm={confirmLogout}
+        title="nav.logout_confirm_title"
+        message="nav.logout_confirm_msg"
+        confirmLabel="nav.logout"
+        tone="danger"
+      />
     </div>
   )
 }

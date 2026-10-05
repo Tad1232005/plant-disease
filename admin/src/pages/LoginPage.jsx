@@ -9,7 +9,6 @@ import LanguageToggle from '../components/common/LanguageToggle.jsx'
 import ThemeToggle from '../components/common/ThemeToggle.jsx'
 import { useAuth } from '../contexts/AuthContext.jsx'
 import { useLanguage } from '../contexts/LanguageContext.jsx'
-import { demoUsers } from '../data/demoData.js'
 
 const FRONTEND_URL = import.meta.env.VITE_FRONTEND_URL || 'http://localhost:5173'
 const schema = z.object({
@@ -24,7 +23,7 @@ export default function LoginPage() {
   const { t } = useLanguage()
   const location = useLocation()
   const navigate = useNavigate()
-  const { register, handleSubmit, setValue, formState: { errors, isSubmitting } } = useForm({
+  const { register, handleSubmit, formState: { errors, isSubmitting } } = useForm({
     resolver: zodResolver(schema),
     defaultValues: { username: '', password: '' },
   })
@@ -39,11 +38,6 @@ export default function LoginPage() {
     } catch (error) {
       setServerError(error.message)
     }
-  }
-
-  function useDemoAdmin() {
-    setValue('username', demoUsers.admin.username, { shouldValidate: true })
-    setValue('password', demoUsers.admin.password, { shouldValidate: true })
   }
 
   return (
@@ -94,11 +88,6 @@ export default function LoginPage() {
               {isSubmitting ? t('login.checking') : t('login.submit')} <ArrowRight size={17} />
             </button>
           </form>
-
-          <button type="button" onClick={useDemoAdmin} className="mt-5 w-full rounded-2xl border border-slate-200 bg-white p-4 text-left transition hover:border-leaf-300 hover:bg-leaf-50 dark:border-slate-800 dark:bg-slate-900 dark:hover:border-leaf-700 dark:hover:bg-slate-800/80">
-            <p className="text-sm font-bold text-slate-800 dark:text-slate-100">{t('login.demo')}</p>
-            <p className="mt-1 text-xs text-slate-400 dark:text-slate-500">admin / 123456</p>
-          </button>
         </div>
       </main>
     </div>

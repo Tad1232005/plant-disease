@@ -6,6 +6,37 @@ import { autoTranslate, getCachedTranslation } from '../services/translator.js'
 const STORAGE_KEY = 'plantcare_admin_lang'
 const dictionaries = { vi, en }
 
+// Nội dung động từ DB có thể lặp lại 38 lần trong cùng một bảng, nên giới hạn
+// số request dịch đồng thời để tránh dồn Google Translate lần đầu mở trang.
+const MAX_CONCURRENT_TRANSLATIONS = 4
+const queuedTranslations = []
+const inFlightKeys = new Set()
+let runningTranslations = 0
+
+function processTranslationQueue() {
+  while (runningTranslations < MAX_CONCURRENT_TRANSLATIONS && queuedTranslations.length > 0) {
+    const task = queuedTranslations.shift()
+    runningTranslations += 1
+    autoTranslate(task.text, task.targetLang).then((translated) => {
+      task.onDone(translated)
+    }).finally(() => {
+      inFlightKeys.delete(task.key)
+      runningTranslations -= 1
+      processTranslationQueue()
+    })
+  }
+}
+
+function queueTranslation(text, targetLang, onDone) {
+  const key = `${targetLang}:${text.trim()}`
+  // Mỗi render gọi t() lại; chỉ xếp hàng 1 lần cho mỗi chuỗi đang bay,
+  // tránh hàng chục callback trùng nhau kích hoạt re-render thừa khi xong.
+  if (inFlightKeys.has(key)) return
+  inFlightKeys.add(key)
+  queuedTranslations.push({ key, text, targetLang, onDone })
+  processTranslationQueue()
+}
+
 const LanguageContext = createContext(null)
 
 function getInitialLanguage() {
@@ -82,7 +113,7 @@ export function LanguageProvider({ children }) {
         // Nếu chuỗi là một thông báo/nội dung có dấu cách hoặc tiếng Việt (không phải key kỹ thuật dạng a.b)
         // Kích hoạt dịch tự động không đồng bộ, khi hoàn tất sẽ cập nhật state để giao diện tự hiển thị tiếng Anh
         if (typeof path === 'string' && (path.includes(' ') || /[à-ỹÀ-Ỹ]/.test(path))) {
-          autoTranslate(path, 'en').then((translated) => {
+          queueTranslation(path, 'en', (translated) => {
             // Chỉ re-render khi thực sự có bản dịch mới (tránh lặp vô hạn khi offline)
             if (translated !== path) setCacheRevision((r) => r + 1)
           })

@@ -13,14 +13,12 @@ npm run dev
 
 Mở `http://localhost:5174`.
 
-Tài khoản demo: `admin` / `123456`.
-
 ## Chức năng chính
 
 - Duyệt/từ chối đề xuất bệnh của Kỹ thuật viên tại `/proposals`.
 - Quản lý Model Version tại `/models`: liệt kê bundle đã đăng ký, đăng ký bundle mới từ `manifest.json` và kích hoạt lên Production.
 - Dashboard thống kê hệ thống từ `GET /api/v1/stats/admin/overview` tại `/system`.
-- Các trang ưu tiên API thật và tự dùng dữ liệu demo nếu Backend chưa có endpoint (trang Model Version đã bỏ dữ liệu demo, luôn đọc từ API).
+- Các trang ưu tiên API thật (đề xuất, thống kê, người dùng, model version); trang Farm lưu dữ liệu cục bộ ở trình duyệt vì backend chưa có API farm cho Admin.
 
 Các API đã chuẩn bị:
 
@@ -36,7 +34,6 @@ admin/
 ├── src/
 │   ├── components/     # Layout và UI dùng chung
 │   ├── contexts/       # Phiên đăng nhập Admin
-│   ├── data/           # Dữ liệu demo
 │   ├── pages/          # Dashboard và các trang quản trị
 │   ├── routes/         # Bảo vệ route theo role admin
 │   ├── services/       # Gọi FastAPI backend

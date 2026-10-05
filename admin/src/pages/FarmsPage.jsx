@@ -12,7 +12,8 @@ import { initialFarms } from '../data/demoData.js'
 import { adminFarmsApi } from '../services/farms.js'
 import { loadCollection, saveCollection } from '../utils/storage.js'
 
-const STORAGE_KEY = 'plantcare_farms'
+// Key riêng của admin: tách khỏi localStorage app người dùng và không nạp dữ liệu seed cũ.
+const STORAGE_KEY = 'plantcare_admin_farms'
 
 function normalizeFarm(farm) {
   return {
@@ -27,6 +28,7 @@ function normalizeFarm(farm) {
 
 export default function FarmsPage() {
   const { t } = useLanguage()
+  const [farms, setFarms] = useState(() => loadCollection(STORAGE_KEY, []))
   const [farms, setFarms] = useState(() => loadCollection(STORAGE_KEY, initialFarms).map(normalizeFarm))
   const [editing, setEditing] = useState(null)
   const [formOpen, setFormOpen] = useState(false)
