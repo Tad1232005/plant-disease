@@ -15,7 +15,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from app.core.exceptions import ModelConfigurationError
+from app.services.predict_service import ModelConfigurationError
 
 
 def get_gradcam_target_layer(model: nn.Module, model_type: str) -> nn.Module:

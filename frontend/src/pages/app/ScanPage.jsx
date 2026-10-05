@@ -1,8 +1,9 @@
-import { History, LogIn, ScanLine, ShieldCheck } from 'lucide-react'
+import { History, LogIn, ScanLine, ShieldCheck, Sparkles, Loader2 } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { getApiError } from '../../api/client.js'
 import { explainPrediction, predictImage } from '../../api/predict.js'
+import { farmsApi } from '../../api/farms.js'
 import ResultCard from '../../components/ResultCard.jsx'
 import UploadImage from '../../components/UploadImage.jsx'
 import PageHeader from '../../components/common/PageHeader.jsx'
@@ -10,6 +11,7 @@ import { initialFarms } from '../../data/demoData.js'
 import { useAuth } from '../../contexts/AuthContext.jsx'
 import { usePreferences } from '../../contexts/PreferencesContext.jsx'
 import { loadCollection, saveCollection } from '../../utils/storage.js'
+import { compressImage, formatBytes } from '../../utils/imageCompressor.js'
 
 const HISTORY_KEY = 'plantcare_scan_history'
 const DEMO_RESULT = {
@@ -57,23 +59,74 @@ export default function ScanPage({ guestMode = false }) {
   const [loading, setLoading] = useState(false)
   const [explanation, setExplanation] = useState(null)
   const [explainLoading, setExplainLoading] = useState(false)
+  const [compressing, setCompressing] = useState(false)
+  const [compressionRatio, setCompressionRatio] = useState(null)
   const [error, setError] = useState('')
   const [farmId, setFarmId] = useState('')
-  const farms = loadCollection('plantcare_farms', initialFarms)
+  const [farms, setFarms] = useState(() => loadCollection('plantcare_farms', initialFarms))
+
+  useEffect(() => {
+    let active = true
+    const fetchFarms = user?.role === 'manager' ? farmsApi.list : farmsApi.myFarms
+    fetchFarms()
+      .catch(() => farmsApi.list())
+      .then((data) => {
+        if (!active || !Array.isArray(data)) return
+        if (data.length > 0) {
+          setFarms(data)
+          saveCollection('plantcare_farms', data)
+        }
+      })
+      .catch(() => {})
+    return () => { active = false }
+  }, [user?.role])
 
   useEffect(() => () => { if (previewUrl) URL.revokeObjectURL(previewUrl) }, [previewUrl])
 
-  function handleFileSelect(nextFile) {
+  async function handleFileSelect(nextFile) {
     setValidationError(''); setError(''); setResult(null); setResultMeta(null); setExplanation(null)
-    if (!['image/jpeg', 'image/png', 'image/webp'].includes(nextFile.type)) { setValidationError(language === 'vi' ? 'Ảnh không hợp lệ. Vui lòng chọn file JPG, PNG hoặc WEBP.' : 'Invalid image. Choose a JPG, PNG, or WEBP file.'); return }
-    if (nextFile.size > 8 * 1024 * 1024) { setValidationError(language === 'vi' ? 'Dung lượng ảnh vượt quá 8 MB.' : 'The image exceeds the 8 MB limit.'); return }
-    if (previewUrl) URL.revokeObjectURL(previewUrl)
-    setFile(nextFile); setPreviewUrl(URL.createObjectURL(nextFile))
+    if (!nextFile) return
+    if (!['image/jpeg', 'image/png', 'image/webp'].includes(nextFile.type) && !nextFile.type.startsWith('image/')) {
+      setValidationError(language === 'vi' ? 'Ảnh không hợp lệ. Vui lòng chọn file JPG, PNG hoặc WEBP.' : 'Invalid image. Choose a JPG, PNG, or WEBP file.')
+      return
+    }
+    if (nextFile.size > 35 * 1024 * 1024) {
+      setValidationError(language === 'vi' ? 'Dung lượng ảnh vượt quá 35 MB.' : 'The image exceeds the 35 MB limit.')
+      return
+    }
+
+    setCompressing(true)
+    try {
+      const { file: optimizedFile, originalSize, compressedSize, wasCompressed } = await compressImage(nextFile, {
+        maxDimension: 1280,
+        quality: 0.82
+      })
+
+      if (previewUrl) URL.revokeObjectURL(previewUrl)
+      setFile(optimizedFile)
+      setPreviewUrl(URL.createObjectURL(optimizedFile))
+      if (wasCompressed) {
+        setCompressionRatio({
+          original: formatBytes(originalSize),
+          compressed: formatBytes(compressedSize),
+          savedPercent: Math.round(((originalSize - compressedSize) / originalSize) * 100)
+        })
+      } else {
+        setCompressionRatio(null)
+      }
+    } catch {
+      if (previewUrl) URL.revokeObjectURL(previewUrl)
+      setFile(nextFile)
+      setPreviewUrl(URL.createObjectURL(nextFile))
+      setCompressionRatio(null)
+    } finally {
+      setCompressing(false)
+    }
   }
 
   function clearFile() {
     if (previewUrl) URL.revokeObjectURL(previewUrl)
-    setFile(null); setPreviewUrl(''); setResult(null); setResultMeta(null); setExplanation(null); setError(''); setValidationError('')
+    setFile(null); setPreviewUrl(''); setResult(null); setResultMeta(null); setExplanation(null); setError(''); setValidationError(''); setCompressionRatio(null); setCompressing(false)
   }
 
   function showResult(nextResult) {
@@ -100,7 +153,7 @@ export default function ScanPage({ guestMode = false }) {
   async function explain() {
     if (!file) return
     setExplainLoading(true)
-    try { setExplanation(await explainPrediction(file)) }
+    try { setExplanation(await explainPrediction(file, result?.scan_id)) }
     catch { setExplanation({ demo: true }) }
     finally { setExplainLoading(false) }
   }
@@ -120,7 +173,30 @@ export default function ScanPage({ guestMode = false }) {
         </div>
       )}
       <div className="grid items-start gap-6 xl:grid-cols-[1.15fr_.85fr]">
-        <div><UploadImage onFileSelect={handleFileSelect} previewUrl={previewUrl} fileName={file?.name} validationError={validationError} onClear={clearFile} /><button className="btn-primary mt-4 w-full !py-3.5" disabled={!file || loading} onClick={analyze}><ScanLine size={19} />{loading ? t('scan.analyzing') : t('scan.analyze')}</button></div>
+        <div>
+          <UploadImage onFileSelect={handleFileSelect} previewUrl={previewUrl} fileName={file?.name} validationError={validationError} onClear={clearFile} />
+          
+          {compressionRatio && (
+            <div className="mt-3 flex items-center gap-2 rounded-2xl border border-emerald-200 bg-emerald-50/90 px-4 py-2.5 text-xs font-medium text-emerald-800 shadow-sm dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300">
+              <Sparkles size={16} className="shrink-0 text-emerald-600 dark:text-emerald-400" />
+              <span>
+                {language === 'vi'
+                  ? `Đã tối ưu hóa ảnh: ${compressionRatio.original} → ${compressionRatio.compressed} (giảm ${compressionRatio.savedPercent}%, tải lên nhanh hơn)`
+                  : `Image optimized: ${compressionRatio.original} → ${compressionRatio.compressed} (saved ${compressionRatio.savedPercent}%, faster upload)`}
+              </span>
+            </div>
+          )}
+
+          <button className="btn-primary mt-4 w-full !py-3.5" disabled={!file || loading || compressing} onClick={analyze}>
+            {compressing ? (
+              <><Loader2 className="animate-spin" size={19} />{language === 'vi' ? 'Đang tối ưu dung lượng...' : 'Optimizing image...'}</>
+            ) : loading ? (
+              <><ScanLine size={19} />{t('scan.analyzing')}</>
+            ) : (
+              <><ScanLine size={19} />{t('scan.analyze')}</>
+            )}
+          </button>
+        </div>
         <ResultCard result={result} loading={loading} error={error} meta={resultMeta} onReset={clearFile} onUseDemo={() => { setError(''); showResult(DEMO_RESULT) }} previewUrl={previewUrl} showGradCam={!guestMode && user?.role === 'technician'} explanation={explanation} explainLoading={explainLoading} onExplain={explain} />
       </div>
     </div>

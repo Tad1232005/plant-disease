@@ -7,6 +7,8 @@ export const en = {
     proposals: 'Review Proposals',
     models: 'Model Versions',
     system: 'System Monitoring',
+    audit: 'Audit Logs',
+    profile: 'Admin Profile',
     badge_admin: 'Stand-alone Admin App',
     logout: 'Log Out',
     header_title: 'Admin Control Center',

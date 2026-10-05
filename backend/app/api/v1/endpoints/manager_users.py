@@ -6,7 +6,12 @@ from sqlalchemy.orm import Session
 from app.api.deps import require_role
 from app.db.session import get_db
 from app.models.user import User
-from app.schemas.user import ManagerCreateUserRequest, UserResponse
+from app.schemas.user import (
+    ManagerCreateUserRequest,
+    ManagerResetPasswordRequest,
+    UserResponse,
+    UserStatusRequest,
+)
 from app.services import user_admin_service
 
 router = APIRouter(prefix="/manager/users", tags=["Manager Users"])
@@ -51,3 +56,35 @@ def get_managed_user(
 ) -> User:
     """Manager xem chi tiết User do chính mình tạo."""
     return user_admin_service.get_user_for_manager(db, current_manager.id, user_id)
+
+
+@router.patch("/{user_id}/status", response_model=UserResponse)
+def change_managed_user_status(
+    user_id: int,
+    data: UserStatusRequest,
+    db: Session = Depends(get_db),
+    current_manager: User = Depends(require_role("manager")),
+) -> User:
+    """Manager suspend hoặc activate tài khoản Nông dân do chính mình tạo."""
+    return user_admin_service.set_managed_user_status(
+        db,
+        manager=current_manager,
+        user_id=user_id,
+        data=data,
+    )
+
+
+@router.post("/{user_id}/reset-password", response_model=UserResponse)
+def reset_managed_user_password(
+    user_id: int,
+    data: ManagerResetPasswordRequest,
+    db: Session = Depends(get_db),
+    current_manager: User = Depends(require_role("manager")),
+) -> User:
+    """Manager đặt lại mật khẩu cho Nông dân do chính mình tạo."""
+    return user_admin_service.reset_managed_user_password(
+        db,
+        manager=current_manager,
+        user_id=user_id,
+        new_password=data.new_password,
+    )
