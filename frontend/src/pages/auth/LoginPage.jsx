@@ -8,8 +8,7 @@ import Brand from '../../components/common/Brand.jsx'
 import PreferenceControls from '../../components/common/PreferenceControls.jsx'
 import { useAuth } from '../../contexts/AuthContext.jsx'
 import { usePreferences } from '../../contexts/PreferencesContext.jsx'
-import { demoUsers } from '../../data/demoData.js'
-import { getHomeForRole, getRoleLabel } from '../../utils/roles.js'
+import { getHomeForRole } from '../../utils/roles.js'
 
 const schema = z.object({
   username: z.string().trim().min(3, 'Tên đăng nhập cần ít nhất 3 ký tự'),
@@ -22,7 +21,7 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false)
   const [serverError, setServerError] = useState('')
   const { login, user, isAuthenticated } = useAuth()
-  const { language, t } = usePreferences()
+  const { t } = usePreferences()
   const navigate = useNavigate()
   const location = useLocation()
   const { register, handleSubmit, setValue, formState: { errors, isSubmitting } } = useForm({
@@ -45,11 +44,6 @@ export default function LoginPage() {
       }
       setServerError(error.message)
     }
-  }
-
-  function useDemo(account) {
-    setValue('username', account.username, { shouldValidate: true })
-    setValue('password', account.password, { shouldValidate: true })
   }
 
   return (
@@ -93,16 +87,6 @@ export default function LoginPage() {
             {serverError && <p className="rounded-xl bg-rose-50 px-4 py-3 text-sm text-rose-700">{serverError}</p>}
             <button className="btn-primary w-full !py-3.5" disabled={isSubmitting}>{isSubmitting ? t('login.submitting') : t('login.submit')} <ArrowRight size={17} /></button>
           </form>
-
-          <div className="my-7 flex items-center gap-4"><span className="h-px flex-1 bg-slate-200" /><span className="text-xs font-semibold text-slate-400">{t('login.demo')}</span><span className="h-px flex-1 bg-slate-200" /></div>
-          <div className="grid grid-cols-2 gap-2.5">
-            {Object.values(demoUsers).map((account) => (
-              <button key={account.username} type="button" onClick={() => useDemo(account)} className="rounded-2xl border border-slate-200 bg-white p-3 text-left transition hover:border-leaf-300 hover:bg-leaf-50">
-                <p className="text-sm font-bold text-slate-800">{language === 'en' ? ({ user: 'Farmer', technician: 'Technician', manager: 'Manager' }[account.role] || account.role) : getRoleLabel(account.role)}</p>
-                <p className="mt-0.5 text-xs text-slate-400">{account.username} / 123456</p>
-              </button>
-            ))}
-          </div>
           <Link to="/guest/scan" className="btn-secondary mt-6 w-full">{t('login.guest')} <ArrowRight size={17} /></Link>
           <p className="mt-7 text-center text-sm text-slate-500">{t('login.noAccount')} <Link to="/register" className="font-bold text-leaf-700 hover:text-leaf-800">{t('login.registerNow')}</Link></p>
           <p className="mt-3 text-center text-sm text-slate-500">{t('login.admin')} <a href={`${ADMIN_URL}/login`} className="font-bold text-leaf-700 hover:text-leaf-800">{t('login.adminPanel')}</a></p>
