@@ -10,6 +10,8 @@ import { apiClient } from './client.js'
  */
 export const diseasesApi = {
   list: async (params) => (await apiClient.get('/disease-info', { params })).data,
+}
+
 export const adminDiseasesApi = {
   list: async () => (await apiClient.get('/disease-info')).data,
   get: async (labelKey) => (await apiClient.get(`/disease-info/${labelKey}`)).data,

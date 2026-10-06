@@ -7,13 +7,8 @@ import Modal from '../components/common/Modal.jsx'
 import PageHeader from '../components/common/PageHeader.jsx'
 import StatusBadge from '../components/common/StatusBadge.jsx'
 import { useLanguage } from '../contexts/LanguageContext.jsx'
-import { diseasesApi } from '../services/diseases.js'
-import { getApiError } from '../services/client.js'
-import { initialDiseases } from '../data/demoData.js'
 import { adminDiseasesApi } from '../services/diseases.js'
-import { loadCollection, saveCollection } from '../utils/storage.js'
-
-const STORAGE_KEY = 'plantcare_diseases'
+import { getApiError } from '../services/client.js'
 
 function normalizeDisease(item) {
   const labelKey = item.label_key || item.labelKey || ''
@@ -36,7 +31,6 @@ export default function DiseaseManagementPage() {
   const [diseases, setDiseases] = useState([])
   const [loading, setLoading] = useState(true)
   const [message, setMessage] = useState('')
-  const [diseases, setDiseases] = useState(() => loadCollection(STORAGE_KEY, initialDiseases).map(normalizeDisease))
   const [editing, setEditing] = useState(null)
   const [formOpen, setFormOpen] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -46,25 +40,10 @@ export default function DiseaseManagementPage() {
   useEffect(() => {
     let active = true
     setLoading(true)
-    diseasesApi.list()
-      .then((payload) => { if (active) setDiseases(Array.isArray(payload) ? payload : []) })
+    adminDiseasesApi.list()
+      .then((payload) => { if (active) setDiseases(Array.isArray(payload) ? payload.map(normalizeDisease) : []) })
       .catch((error) => { if (active) setMessage(getApiError(error, t('diseases.err_load'))) })
       .finally(() => { if (active) setLoading(false) })
-    return () => { active = false }
-  }, [])
-
-  useEffect(() => {
-    let active = true
-    adminDiseasesApi.list()
-      .then((data) => {
-        if (!active || !Array.isArray(data)) return
-        if (data.length > 0) {
-          const mapped = data.map(normalizeDisease)
-          setDiseases(mapped)
-          saveCollection(STORAGE_KEY, mapped)
-        }
-      })
-      .catch(() => {})
     return () => { active = false }
   }, [])
 
@@ -91,8 +70,8 @@ export default function DiseaseManagementPage() {
     setSaving(true)
     try {
       const saved = editing
-        ? await diseasesApi.update(labelKey, payload)
-        : await diseasesApi.create({ label_key: labelKey, ...payload })
+        ? await adminDiseasesApi.update(labelKey, payload)
+        : await adminDiseasesApi.create({ label_key: labelKey, ...payload })
       setDiseases((items) => editing
         ? items.map((item) => item.label_key === labelKey ? saved : item)
         : [saved, ...items])
@@ -110,7 +89,7 @@ export default function DiseaseManagementPage() {
     if (!deleting || confirmingDelete) return
     setConfirmingDelete(true)
     try {
-      await diseasesApi.remove(deleting.label_key)
+      await adminDiseasesApi.remove(deleting.label_key || deleting.labelKey)
       setDiseases((items) => items.filter((item) => item.label_key !== deleting.label_key))
       setDeleting(null)
       setMessage(t('diseases.msg_deleted', { name: deleting.disease_name }))
@@ -120,53 +99,6 @@ export default function DiseaseManagementPage() {
       setConfirmingDelete(false)
     }
   }
-  useEffect(() => saveCollection(STORAGE_KEY, diseases), [diseases])
-  function openCreate() { setEditing(null); setFormOpen(true) }
-  function openEdit(item) { setEditing(item); setFormOpen(true) }
-
-  async function saveDisease(values) {
-    if (editing) {
-      try {
-        const payload = {
-          disease_name: values.name,
-          description: values.symptoms,
-          treatment: values.treatment,
-          severity_level: values.severity,
-        }
-        await adminDiseasesApi.update(editing.labelKey, payload)
-        setDiseases((items) => items.map((item) => item.id === editing.id ? normalizeDisease({ ...item, ...values }) : item))
-      } catch {
-        setDiseases((items) => items.map((item) => item.id === editing.id ? { ...item, ...values } : item))
-      }
-    } else {
-      try {
-        const payload = {
-          label_key: values.labelKey,
-          disease_name: values.name,
-          description: values.symptoms,
-          treatment: values.treatment,
-          severity_level: values.severity,
-        }
-        const created = await adminDiseasesApi.create(payload)
-        setDiseases((items) => [normalizeDisease({ ...values, ...created }), ...items])
-      } catch {
-        setDiseases((items) => [{ ...values, id: Date.now() }, ...items])
-      }
-    }
-    setFormOpen(false)
-  }
-
-  async function deleteDisease() {
-    if (!deleting) return
-    try {
-      if (deleting.labelKey) {
-        await adminDiseasesApi.remove(deleting.labelKey)
-      }
-    } catch {}
-    setDiseases((items) => items.filter((item) => item.id !== deleting.id))
-    setDeleting(null)
-  }
-
   const columns = [
     { key: 'disease_name', label: t('diseases.col_name'), sortable: true, render: (value, row) => <div className="flex items-center gap-3"><span className="grid h-9 w-9 place-items-center rounded-xl bg-leaf-50 text-leaf-700 dark:bg-leaf-900/40 dark:text-leaf-300"><Leaf size={17} /></span><div><p className="font-bold text-slate-800 dark:text-slate-100">{value ? t(value) : '—'}</p><p className="mt-0.5 text-xs text-slate-400 dark:text-slate-500">{row.label_key}</p></div></div> },
     { key: 'severity_level', label: t('diseases.col_severity'), render: (value) => <StatusBadge value={value} /> },
