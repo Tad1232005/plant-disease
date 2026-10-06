@@ -9,34 +9,12 @@ import StatusBadge from '../components/common/StatusBadge.jsx'
 import { useLanguage } from '../contexts/LanguageContext.jsx'
 import { diseasesApi } from '../services/diseases.js'
 import { getApiError } from '../services/client.js'
-import { initialDiseases } from '../data/demoData.js'
-import { adminDiseasesApi } from '../services/diseases.js'
-import { loadCollection, saveCollection } from '../utils/storage.js'
-
-const STORAGE_KEY = 'plantcare_diseases'
-
-function normalizeDisease(item) {
-  const labelKey = item.label_key || item.labelKey || ''
-  const rawPlant = item.plant || (labelKey ? labelKey.split('_')[0] : 'Cây trồng')
-  const plant = rawPlant.charAt(0).toUpperCase() + rawPlant.slice(1)
-  return {
-    ...item,
-    id: item.id || labelKey,
-    labelKey,
-    name: item.disease_name || item.name,
-    plant,
-    severity: item.severity_level || item.severity || 'medium',
-    symptoms: item.description || item.symptoms || '',
-    treatment: item.treatment || '',
-  }
-}
 
 export default function DiseaseManagementPage() {
   const { t } = useLanguage()
   const [diseases, setDiseases] = useState([])
   const [loading, setLoading] = useState(true)
   const [message, setMessage] = useState('')
-  const [diseases, setDiseases] = useState(() => loadCollection(STORAGE_KEY, initialDiseases).map(normalizeDisease))
   const [editing, setEditing] = useState(null)
   const [formOpen, setFormOpen] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -50,21 +28,6 @@ export default function DiseaseManagementPage() {
       .then((payload) => { if (active) setDiseases(Array.isArray(payload) ? payload : []) })
       .catch((error) => { if (active) setMessage(getApiError(error, t('diseases.err_load'))) })
       .finally(() => { if (active) setLoading(false) })
-    return () => { active = false }
-  }, [])
-
-  useEffect(() => {
-    let active = true
-    adminDiseasesApi.list()
-      .then((data) => {
-        if (!active || !Array.isArray(data)) return
-        if (data.length > 0) {
-          const mapped = data.map(normalizeDisease)
-          setDiseases(mapped)
-          saveCollection(STORAGE_KEY, mapped)
-        }
-      })
-      .catch(() => {})
     return () => { active = false }
   }, [])
 
@@ -119,52 +82,6 @@ export default function DiseaseManagementPage() {
     } finally {
       setConfirmingDelete(false)
     }
-  }
-  useEffect(() => saveCollection(STORAGE_KEY, diseases), [diseases])
-  function openCreate() { setEditing(null); setFormOpen(true) }
-  function openEdit(item) { setEditing(item); setFormOpen(true) }
-
-  async function saveDisease(values) {
-    if (editing) {
-      try {
-        const payload = {
-          disease_name: values.name,
-          description: values.symptoms,
-          treatment: values.treatment,
-          severity_level: values.severity,
-        }
-        await adminDiseasesApi.update(editing.labelKey, payload)
-        setDiseases((items) => items.map((item) => item.id === editing.id ? normalizeDisease({ ...item, ...values }) : item))
-      } catch {
-        setDiseases((items) => items.map((item) => item.id === editing.id ? { ...item, ...values } : item))
-      }
-    } else {
-      try {
-        const payload = {
-          label_key: values.labelKey,
-          disease_name: values.name,
-          description: values.symptoms,
-          treatment: values.treatment,
-          severity_level: values.severity,
-        }
-        const created = await adminDiseasesApi.create(payload)
-        setDiseases((items) => [normalizeDisease({ ...values, ...created }), ...items])
-      } catch {
-        setDiseases((items) => [{ ...values, id: Date.now() }, ...items])
-      }
-    }
-    setFormOpen(false)
-  }
-
-  async function deleteDisease() {
-    if (!deleting) return
-    try {
-      if (deleting.labelKey) {
-        await adminDiseasesApi.remove(deleting.labelKey)
-      }
-    } catch {}
-    setDiseases((items) => items.filter((item) => item.id !== deleting.id))
-    setDeleting(null)
   }
 
   const columns = [
