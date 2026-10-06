@@ -89,7 +89,6 @@ export default function LoginPage() {
           </form>
           <Link to="/guest/scan" className="btn-secondary mt-6 w-full">{t('login.guest')} <ArrowRight size={17} /></Link>
           <p className="mt-7 text-center text-sm text-slate-500">{t('login.noAccount')} <Link to="/register" className="font-bold text-leaf-700 hover:text-leaf-800">{t('login.registerNow')}</Link></p>
-          <p className="mt-3 text-center text-sm text-slate-500">{t('login.admin')} <a href={`${ADMIN_URL}/login`} className="font-bold text-leaf-700 hover:text-leaf-800">{t('login.adminPanel')}</a></p>
         </div>
       </main>
     </div>
