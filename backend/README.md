@@ -52,6 +52,9 @@ liệu phục vụ lịch sử Scan và dashboard.
 pytest tests/   # cần PostgreSQL 127.0.0.1:55432 (compose ở trên); conftest tự tạo/xóa DB *_test
 ```
 
+> 3 test trong `tests/test_seed_week2.py` cần `model.pt` thật (gitignore) nên chỉ chạy
+> local khi đủ artifacts — CI bỏ qua bằng `--deselect` (xem `.github/workflows/ci.yml`).
+
 ## Cấu trúc thư mục
 
 ```text
