@@ -1,13 +1,7 @@
 """
 Debug gate_scale — kiem tra RAW vs CALIBRATED gate thuc te dung gia tri nao.
-Chay: py debug_gate.py   (tu thu muc ml/)
+Chay: py src/debug_gate.py   (tu thu muc ml/)
 """
-import sys
-from pathlib import Path
-
-# cho phep import predict.py tu thu muc src/
-sys.path.insert(0, str(Path(__file__).parent / "src"))
-
 import torch
 from predict import load_predictor
 

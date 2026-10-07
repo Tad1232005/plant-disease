@@ -4,61 +4,60 @@
 Phân loại một số nhóm bệnh phổ biến trên lá cây từ ảnh, kèm mức độ tin cậy (confidence score).
 
 ## Stack
-- **ML**: Python, PyTorch (train + export `.pt`)
-- **Backend**: Python, FastAPI (serve model qua REST API)
-- **Frontend**: React (Vite)
+- **ML**: Python, PyTorch (train + export `.pt`, 38 lớp PlantVillage)
+- **Backend**: Python 3.12, FastAPI, SQLAlchemy 2, Alembic, PostgreSQL, JWT (`:8000`, Swagger `/docs`)
+- **Frontend**: React 18, Vite 5, Tailwind, React Hook Form, Zod, Axios (`:5173`)
+- **Admin**: React 18, app quản trị riêng (`:5174`)
 
 ## Cấu trúc thư mục
 ```
 ml/          Data, notebook EDA, code train/evaluate model
-backend/     FastAPI serve API /predict
+backend/     FastAPI serve API /api/v1
 frontend/    React app upload ảnh + hiển thị kết quả
-docs/        Project charter, WBS, risk register, báo cáo
+admin/       React app quản trị riêng
+docs/        Tài liệu kiến trúc + dự án (xem docs/README.md)
+AGENTS.md    Quy ước dự án cho AI agent (single source of truth)
 ```
 
 ## Phân công nhánh (branching rule)
 ### Quy tắc đặt tên nhánh
 
-- Bắt buộc đặt tên nhánh theo tên cá nhân (viết liền, không dấu, ngăn cách bằng dấu `-`).
-- Ví dụ: `tad`.
+- Nhánh tính năng: `feature/<ten-viet-lien-khong-dau>` (rẽ từ `dev`).
+- Ví dụ: `feature/ood-threshold`.
 
-### Workflow 5 bước chuẩn
+### Workflow: feature → dev → main
 
-1. **Trước khi code, luôn cập nhật `main` mới nhất:**
-
-```bash
-git checkout main
-git pull origin main
-```
-
-2. **Tạo nhánh cá nhân theo đúng quy tắc tên:**
+1. **Trước khi code, luôn cập nhật `dev` mới nhất và rẽ nhánh từ đó:**
 
 ```bash
-git checkout -b tad
+git checkout dev
+git pull origin dev
+git checkout -b feature/ten-tinh-nang
 ```
 
-3. **Code tính năng, sau đó add và commit rõ ràng:**
+2. **Code tính năng, sau đó add và commit rõ ràng:**
 
 ```bash
 git add .
 git commit -m "feat: mo ta ngan gon thay doi"
 ```
 
-4. **Đẩy nhánh cá nhân lên GitHub:**
+3. **Đẩy nhánh và tạo Pull Request vào `dev`:**
 
 ```bash
-git push origin tad
+git push origin feature/ten-tinh-nang
 ```
 
-5. **Tạo Pull Request (PR) để Leader review và merge vào `main`.**
+4. **Leader review và merge vào `dev`. Khi `dev` ổn định → tạo PR từ `dev` vào `main`.**
 
 ### Lưu ý quan trọng
 
-- Không bao giờ push trực tiếp lên `main`.
-- Luôn kiểm tra và xử lý conflict trước khi merge PR.
+- Không bao giờ push trực tiếp lên `dev` hay `main`.
+- Luôn kiểm tra và xử lý conflict trước khi tạo PR.
 
 ## Setup nhanh từng phần
 Xem README riêng trong mỗi thư mục:
 - [`ml/README.md`](ml/README.md)
 - [`backend/README.md`](backend/README.md)
 - [`frontend/README.md`](frontend/README.md)
+- [`admin/README.md`](admin/README.md)

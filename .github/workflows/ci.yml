@@ -1,0 +1,101 @@
+# CI tối thiểu cho flow feature/* -> dev -> main.
+# Add 3 checks này vào required status checks của ruleset dev + main:
+#   backend-test / frontend-build / admin-build
+# ML không chạy ở CI (nặng, cần data + GPU); BE test đã mock inference.
+
+name: CI
+
+on:
+  pull_request:
+    branches: [dev, main]
+  push:
+    branches: [dev, main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend-test:
+    name: backend-test
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: plant_app
+          POSTGRES_PASSWORD: plant_test_password
+          POSTGRES_DB: plant_disease
+        ports:
+          - 55432:5432
+        options: >-
+          --health-cmd "pg_isready -U plant_app -d plant_disease"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: backend/requirements.txt
+      - name: Install dependencies
+        # torch CPU (~200MB) thay cho CUDA (~2.5GB): test chỉ cần CPU.
+        # Version pin khớp requirements.txt nên pip sẽ bỏ qua khi cài full file.
+        run: |
+          pip install torch==2.13.0 torchvision==0.28.0 --index-url https://download.pytorch.org/whl/cpu
+          pip install -r requirements.txt
+      - name: Run pytest (PostgreSQL service on 55432)
+        env:
+          POSTGRES_HOST: 127.0.0.1
+          POSTGRES_PORT: 55432
+          POSTGRES_DB: plant_disease
+          POSTGRES_USER: plant_app
+          POSTGRES_PASSWORD: plant_test_password
+          SECRET_KEY: ci-test-secret-key-32-bytes-long-ok
+        # 3 test seed cần model.pt thật (gitignore, không có trên CI) nên bỏ qua ở CI;
+        # chạy tay local khi có đủ artifacts.
+        run: >-
+          python -m pytest tests/ -q
+          --deselect tests/test_seed_week2.py::test_seed_creates_demo_users_all_classes_and_three_active_models
+          --deselect tests/test_seed_week2.py::test_seed_is_idempotent_and_does_not_overwrite_content
+          --deselect tests/test_seed_week2.py::test_real_artifact_contract_has_three_matching_class_orders
+
+  frontend-build:
+    name: frontend-build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+      - run: npm run build
+
+  admin-build:
+    name: admin-build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: admin
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: admin/package-lock.json
+      - run: npm ci
+      - run: npm run build

@@ -16,16 +16,18 @@ Mở `http://localhost:5174`.
 ## Chức năng chính
 
 - Duyệt/từ chối đề xuất bệnh của Kỹ thuật viên tại `/proposals`.
+- Quản lý Farm tại `/farms` qua API `/farms` (list/create/update/delete).
 - Quản lý Model Version tại `/models`: liệt kê bundle đã đăng ký, đăng ký bundle mới từ `manifest.json` và kích hoạt lên Production.
 - Dashboard thống kê hệ thống từ `GET /api/v1/stats/admin/overview` tại `/system`.
-- Các trang ưu tiên API thật (đề xuất, thống kê, người dùng, model version); trang Farm lưu dữ liệu cục bộ ở trình duyệt vì backend chưa có API farm cho Admin.
+- Nhật ký audit tại `/audit-logs`, hồ sơ cá nhân tại `/profile`.
+- Mọi trang gọi API thật qua `src/services/` (không fallback demo).
 
-Các API đã chuẩn bị:
+Các API đã dùng:
 
-- `GET/PUT /api/v1/admin/disease-proposals`
-- `GET/POST /api/v1/admin/model-versions`
-- `POST /api/v1/admin/model-versions/{id}/activate`
+- `GET /api/v1/admin/disease-proposals` + `PUT /api/v1/admin/disease-proposals/{id}/approve|reject`
+- `GET /api/v1/admin/model-versions`, `GET /api/v1/admin/model-versions/{id}`, `POST /api/v1/admin/model-versions`, `POST /api/v1/admin/model-versions/{id}/activate`
 - `GET /api/v1/stats/admin/overview`
+- `GET/POST /api/v1/admin/users`, `PATCH /api/v1/admin/users/{id}/status`
 
 ## Cấu trúc
 
