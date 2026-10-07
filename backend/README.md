@@ -37,6 +37,21 @@ Logout thu hồi ngay cả access và refresh token bằng `token_version`. Farm
 Disease Info dùng soft-delete (`archived_at`/`is_active`) để không làm mất dữ
 liệu phục vụ lịch sử Scan và dashboard.
 
+## OOD và ngưỡng
+
+- `POST /predict` chạy ensemble theo mode (`basic` 1 model / `standard` 2 / `advanced` 3),
+  soft-vote trên calibrated probs, check 3 rule: confidence ≥ `CONFIDENCE_THRESHOLD`
+  (0.3), margin ≥ `TOP1_MARGIN_THRESHOLD` (0.05), JS divergence ≤ ngưỡng tier từ
+  `app/ml_assets/models/ood_threshold.json` (hiệu lực ~0.031/0.032).
+- Giữ `JS_DIVERGENCE_THRESHOLD` trong `.env` bằng default `0.035` — nếu khác,
+  ngưỡng calibrate từ JSON sẽ bị bỏ qua (xem `docs/architecture/api/ood-contract.md`).
+
+## Tests
+
+```powershell
+pytest tests/   # cần PostgreSQL 127.0.0.1:55432 (compose ở trên); conftest tự tạo/xóa DB *_test
+```
+
 ## Cấu trúc thư mục
 
 ```text
@@ -46,11 +61,11 @@ app/
 ├── crud/              # truy vấn dữ liệu thuần
 ├── db/                # engine, session, SQLAlchemy Base
 ├── models/            # ORM models và constraints
+├── ml_assets/models/  # bundle model + ood_threshold.json (pt không commit)
 ├── schemas/           # Pydantic request/response schemas
 ├── services/          # business logic
 └── main.py            # khởi tạo FastAPI
 alembic/               # migration database
 scripts/               # seed và smoke test chạy thủ công
 tests/                 # test tích hợp tự động
-docs/                  # tài liệu kỹ thuật
 ```

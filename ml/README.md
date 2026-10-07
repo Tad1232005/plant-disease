@@ -2,14 +2,21 @@
 
 ## Pipeline (file-based)
 
-Nhóm làm theo luồng **tải → export file → train đọc file**, không load Hugging Face lúc train:
+Nhóm làm theo luồng **tải → export file → train đọc file**, không load Hugging Face lúc train.
+Chi tiết flow hệ thống: [`docs/FLOW.md`](docs/FLOW.md). Log thực nghiệm dài: `FLOW.local.md` (local, không commit).
 
 ```
-download_dataset.py  →  data/filtered/     (38 class — data gốc)
-split_dataset.py     →  data/split/        (lọc class + train/val/test)
-train.py             →  models/            (best_model.pt + classes.json)
-evaluate.py          →  outputs/figures/   (confusion matrix, ...)
+download_dataset.py  →  data/filtered/     (38 class PlantVillage — data gốc)
+split_dataset.py     →  data/split/        (train/val/test 70/15/15 theo leaf_id, seed 42)
+train.py             →  models/            (best_model_<suffix>.pt + classes/model_type JSON)
+calibration.py       →  models/temperature_<suffix>.json  (temperature scaling)
+evaluate.py          →  outputs/figures/   (confusion matrix, metrics)
+evaluate_ood.py      →  outputs/ood_threshold.json  (ngưỡng OOD per-tier)
 ```
+
+Backbone đã train (suffix `_f`): `efficientnet_b0`, `mobilenet_v2`, `resnet50`.
+OOD gating theo tier (`basic` 1 model / `standard` 2 / `advanced` 3, primary EfficientNet-B0):
+gate MSP calibrated + ensemble disagreement trên raw logits — xem `docs/FLOW.md`.
 
 Cấu trúc thư mục:
 
@@ -19,18 +26,27 @@ ml/
 │   └── config.yaml          # Hyperparameter, đường dẫn, danh sách class
 ├── data/                    # gitignore — không push lên GitHub
 │   ├── filtered/            # Bước 1: 38 class — data gốc từ HF
-│   └── split/               # Bước 2: lọc class + train/val/test
+│   └── split/               # Bước 2: train/val/test
 │       ├── train/<class>/
 │       ├── val/<class>/
 │       └── test/<class>/
 ├── src/
 │   ├── download_dataset.py  # Bước 1: HF → file ảnh
-│   ├── split_dataset.py     # Bước 2: chia train/val/test
+│   ├── split_dataset.py     # Bước 2: chia train/val/test theo leaf_id
 │   ├── data_loader.py       # Load ảnh từ disk + augment
-│   ├── model.py
-│   ├── train.py             # Bước 3: huấn luyện
-│   └── evaluate.py          # Đánh giá trên tập test
-├── models/                  # gitignore — best_model.pt, classes.json
+│   ├── model.py             # build_model: mobilenet_v2 / resnet50 / efficientnet_b0
+│   ├── train.py             # Bước 3: huấn luyện (suffix theo run_name)
+│   ├── evaluate.py          # Đánh giá trên tập test
+│   ├── calibration.py       # Temperature scaling
+│   ├── ood_scoring.py       # MSP / Entropy / Energy / Ensemble disagreement + TIER_MODELS
+│   ├── evaluate_ood.py      # Benchmark OOD + chốt ngưỡng per-tier
+│   ├── predict.py           # Predictor inference 2 tầng (dùng chung cho BE tham khảo)
+│   ├── gradcam.py           # Grad-CAM heatmap
+│   ├── debug_gate.py        # Kiểm tra gate RAW vs CALIBRATED
+│   └── compare_models.py    # So sánh model trên cùng ảnh
+├── docs/
+│   └── FLOW.md              # Flow hệ thống ML → BE → FE (bản commit)
+├── models/                  # gitignore — best_model_*.pt, classes_*.json, temperature_*.json
 ├── outputs/
 │   ├── logs/
 │   └── figures/
@@ -99,12 +115,14 @@ In classification report và lưu confusion matrix tại `outputs/figures/confus
 
 ## 6. Đưa model sang backend
 
-Copy 2 file sau vào `backend/app/models/`:
-
-- `models/best_model.pt`
-- `models/classes.json`
+Copy các bundle `<model>_f_v1/` (gồm `model.pt`, `classes.json`, `model_type.json`,
+`temperature.json`, `manifest.json`) và `outputs/ood_threshold.json` vào
+`backend/app/ml_assets/models/`. Backend verify manifest + sha256 + thứ tự class
+trước khi seed (xem `backend/README.md`).
 
 ## Ghi chú
 
-- `gradcam.py`, `calibration.py`, `predict.py` — bổ sung sau khi có baseline ổn định.
-- Split hiện tại chia theo **leaf_id** (leaf-map từ HF). Ảnh không có map dùng fallback 1 ảnh = 1 leaf.
+- `train.py` xuất file theo `train.run_name` trong `config.yaml` (mặc định theo `model_type`).
+- `evaluate.py` / `calibration.py` luôn dùng `--model-suffix` để trỏ đúng model vừa train.
+- Disagreement OOD luôn tính trên raw logits; gate MSP dùng calibrated (`--use-temperature`).
+- Split chia theo **leaf_id** (leaf-map từ HF). Ảnh không có map dùng fallback 1 ảnh = 1 leaf.

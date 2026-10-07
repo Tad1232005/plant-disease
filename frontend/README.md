@@ -35,7 +35,7 @@ Frontend React (Vite) cho hệ thống nhận diện bệnh lá cây, được n
 ### Tuần 3 — Predict Core
 
 - Chọn ảnh từ thư viện, kéo thả hoặc chụp trực tiếp bằng camera sau trên điện thoại.
-- Kiểm tra JPG/PNG/WEBP, giới hạn 8 MB và xem trước ảnh.
+- Kiểm tra JPG/PNG/WEBP, giới hạn dung lượng (client 35 MB, server 10 MB) và xem trước ảnh.
 - Gọi `POST /api/v1/predict`, hiển thị nhãn, độ tin cậy và top 3 dự đoán.
 - Gắn kết quả với khu vực/trang trại và lưu lịch sử gần nhất trên trình duyệt.
 
@@ -55,7 +55,7 @@ Frontend React (Vite) cho hệ thống nhận diện bệnh lá cây, được n
 
 - Kết quả Predict hiển thị `is_valid_leaf`, OOD score, cảnh báo ảnh không hợp lệ và gợi ý xử lý.
 - Lịch sử chẩn đoán có trạng thái OOD và chi tiết khuyến nghị.
-- Kỹ thuật viên xem top-3 và Grad-CAM từ `POST /api/v1/predict/explain`.
+- Kỹ thuật viên xem top-3 và Grad-CAM (`POST /api/v1/scans/{id}/gradcam` tạo, `GET /api/v1/scans/{id}/gradcam` xem).
 - Route `/app/proposals` cho Kỹ thuật viên gửi đề xuất bệnh qua `POST /api/v1/disease-proposals` và xem `/disease-proposals/mine`.
 
 ### Tuần 6 — Kết nối Admin
