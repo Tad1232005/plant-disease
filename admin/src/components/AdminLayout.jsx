@@ -1,8 +1,9 @@
 import { Activity, Bell, Database, FileCheck2, History, LayoutDashboard, Leaf, LogOut, Menu, ShieldCheck, Sprout, User, UserCog, X } from 'lucide-react'
-import { useState } from 'react'
-import { NavLink, Outlet } from 'react-router-dom'
+import { useEffect, useState } from 'react'
+import { NavLink, Outlet, useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext.jsx'
 import { useLanguage } from '../contexts/LanguageContext.jsx'
+import { systemHealthApi } from '../services/systemHealth.js'
 import Brand from './common/Brand.jsx'
 import ConfirmDialog from './common/ConfirmDialog.jsx'
 import LanguageToggle from './common/LanguageToggle.jsx'
@@ -87,8 +88,27 @@ function AdminSidebar({ onClose, onRequestLogout, user }) {
 export default function AdminLayout() {
   const [mobileOpen, setMobileOpen] = useState(false)
   const [logoutConfirm, setLogoutConfirm] = useState(false)
+  const [notifOpen, setNotifOpen] = useState(false)
+  const [invalidItems, setInvalidItems] = useState([])
   const { user, logout } = useAuth()
-  const { t } = useLanguage()
+  const { t, language } = useLanguage()
+  const navigate = useNavigate()
+  const isVi = language === 'vi'
+
+  // Chuông báo ảnh OOD/không hợp lệ mới nhất (API thật, im lặng khi lỗi).
+  useEffect(() => {
+    let active = true
+    systemHealthApi.recentInvalid(5)
+      .then((payload) => { if (active && Array.isArray(payload)) setInvalidItems(payload) })
+      .catch(() => {})
+    return () => { active = false }
+  }, [])
+
+  function openSystem() {
+    setNotifOpen(false)
+    setMobileOpen(false)
+    navigate('/system')
+  }
 
   // Đăng xuất là thao tác "đóng phiên" — xác nhận trước để tránh bấm nhầm làm mất form đang nhập.
   function confirmLogout() {
@@ -118,7 +138,59 @@ export default function AdminLayout() {
           <div className="flex items-center gap-2">
             <LanguageToggle />
             <ThemeToggle />
-            <button className="relative rounded-xl border border-slate-200 p-2.5 text-slate-500 transition hover:border-leaf-300 hover:text-leaf-700 dark:border-slate-700 dark:text-slate-300 dark:hover:border-leaf-600 dark:hover:text-leaf-300" aria-label={t('nav.notifications')} title={t('nav.notifications')}><Bell size={19} /><span className="absolute right-2 top-2 h-2 w-2 rounded-full bg-rose-500" /></button>
+            <div className="relative">
+              <button
+                className="relative rounded-xl border border-slate-200 p-2.5 text-slate-500 transition hover:border-leaf-300 hover:text-leaf-700 dark:border-slate-700 dark:text-slate-300 dark:hover:border-leaf-600 dark:hover:text-leaf-300"
+                aria-label={t('nav.notifications')}
+                title={t('nav.notifications')}
+                onClick={() => setNotifOpen((open) => !open)}
+              >
+                <Bell size={19} />
+                {invalidItems.length > 0 && (
+                  <span className="absolute -right-1.5 -top-1.5 grid h-5 min-w-5 place-items-center rounded-full bg-rose-500 px-1 text-[10px] font-bold text-white">
+                    {invalidItems.length > 9 ? '9+' : invalidItems.length}
+                  </span>
+                )}
+              </button>
+              {notifOpen && (
+                <>
+                  <button className="fixed inset-0 z-30 cursor-default" onClick={() => setNotifOpen(false)} aria-label={t('common.cancel')} />
+                  <div className="absolute right-0 z-40 mt-2 w-80 max-w-[calc(100vw-2rem)] overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xl dark:border-slate-700 dark:bg-slate-900">
+                    <p className="border-b border-slate-100 px-4 py-3 text-xs font-bold uppercase tracking-wider text-slate-500 dark:border-slate-800 dark:text-slate-400">
+                      {isVi ? 'Ảnh OOD mới nhất' : 'Latest OOD images'}
+                    </p>
+                    {invalidItems.length === 0 ? (
+                      <p className="px-4 py-5 text-sm text-slate-500 dark:text-slate-400">
+                        {isVi ? 'Không có ảnh không hợp lệ gần đây.' : 'No recent invalid images.'}
+                      </p>
+                    ) : (
+                      <ul className="max-h-72 divide-y divide-slate-100 overflow-y-auto dark:divide-slate-800">
+                        {invalidItems.map((item) => (
+                          <li key={item.id}>
+                            <button className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left transition hover:bg-slate-50 dark:hover:bg-slate-800/60" onClick={openSystem}>
+                              <span className="min-w-0">
+                                <span className="block truncate text-sm font-bold text-slate-800 dark:text-slate-100">
+                                  {item.candidate_label || `#${item.id}`}
+                                </span>
+                                <span className="block text-xs text-slate-400 dark:text-slate-500">
+                                  {item.rejection_reason || item.validation_status || ''}
+                                </span>
+                              </span>
+                              <span className="shrink-0 font-mono text-[11px] text-slate-400 dark:text-slate-500">
+                                {item.created_at ? new Date(item.created_at).toLocaleString(isVi ? 'vi-VN' : 'en-US', { hour12: false }) : ''}
+                              </span>
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                    <button className="block w-full border-t border-slate-100 px-4 py-2.5 text-center text-xs font-bold text-leaf-700 hover:bg-leaf-50 dark:border-slate-800 dark:text-leaf-400 dark:hover:bg-slate-800/60" onClick={openSystem}>
+                      {isVi ? 'Xem hệ thống' : 'View system'}
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
           </div>
         </header>
         <main className="p-4 sm:p-7 lg:p-8"><Outlet /></main>

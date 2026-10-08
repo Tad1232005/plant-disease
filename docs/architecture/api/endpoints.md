@@ -62,4 +62,9 @@ Nguồn thật: `backend/app/api/v1/endpoints/`. Swagger: `http://127.0.0.1:8000
 ## Stats — `monitoring.py`
 
 `GET /stats/farm/{id}`, `GET /stats/admin/overview`, `GET /stats/admin/recent-invalid`,
-`GET /admin/scans`, `GET /admin/scans/{id}/image`. Health: `GET /health/live`, `/health/ready`.
+`GET /admin/scans`, `GET /admin/scans/{id}/image`. Health: `GET /health/live`, `/health/ready` — xem thêm [ood-contract](ood-contract.md) cho ngưỡng predict.
+
+## Audit — `monitoring.py`
+
+`GET /admin/audit-events` (admin, append-only): `?action=`, `?limit/offset`, mới nhất trước,
+kèm `actor_name` (join users, fallback `#id`/`system`). Không có endpoint ghi — audit chỉ sinh từ business flow.

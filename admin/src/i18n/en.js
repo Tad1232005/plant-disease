@@ -218,6 +218,9 @@ export const en = {
     confirm_reject_title: 'Confirm Rejection',
     confirm_reject_msg: 'Reject proposal "{name}"? The feedback note will still be saved.',
   },
+  audit: {
+    err_load: 'Cannot load the audit log from the server.',
+  },
   models: {
     eyebrow: 'Model Deployment',
     title: 'Model Version Management',

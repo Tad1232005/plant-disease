@@ -218,6 +218,9 @@ export const vi = {
     confirm_reject_title: 'Xác nhận từ chối',
     confirm_reject_msg: 'Từ chối đề xuất "{name}"? Ghi chú phản hồi vẫn được lưu.',
   },
+  audit: {
+    err_load: 'Không thể tải nhật ký kiểm toán từ máy chủ.',
+  },
   models: {
     eyebrow: 'Triển khai mô hình',
     title: 'Quản lý phiên bản mô hình',

@@ -41,3 +41,4 @@
 - `.env` từng `JS=0.3` làm ngơ ngưỡng calibrate — đã sửa về `0.035`.
 - pytest phụ thuộc Postgres ngoài, chưa có docker/testcontainers.
 - Theo plan 8 tuần: camera capture, dashboard farm, báo cáo/bảo vệ chưa làm.
+- Phân quyền chưa xong: admin chưa xem được farms, manager chưa xem được history của managed user (chi tiết trong `docs/project/roles.md`).

@@ -27,6 +27,7 @@ Các API đã dùng:
 - `GET /api/v1/admin/disease-proposals` + `PUT /api/v1/admin/disease-proposals/{id}/approve|reject`
 - `GET /api/v1/admin/model-versions`, `GET /api/v1/admin/model-versions/{id}`, `POST /api/v1/admin/model-versions`, `POST /api/v1/admin/model-versions/{id}/activate`
 - `GET /api/v1/stats/admin/overview`
+- `GET /api/v1/admin/audit-events` (nhật ký kiểm toán, `?action=&limit=&offset=`)
 - `GET/POST /api/v1/admin/users`, `PATCH /api/v1/admin/users/{id}/status`
 
 ## Cấu trúc

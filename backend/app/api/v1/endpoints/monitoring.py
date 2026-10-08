@@ -6,8 +6,10 @@ from app.api.deps import require_role
 from app.api.query_params import TimeWindow, time_window
 from app.db.session import get_db
 from app.models.farm import Farm
+from app.models.audit_event import AuditEvent
 from app.models.scan import Scan
 from app.models.user import User
+from app.schemas.audit import AuditEventItem
 from app.schemas.predict import ValidationStatus
 from app.schemas.stats import AdminOverview, AdminScanItem, ScanStats
 from app.services import farm_service, stats_service
@@ -57,6 +59,33 @@ def recent_invalid(limit: int = Query(50, ge=1, le=100), offset: int = Query(0, 
                    _actor: User = Depends(require_role("admin"))) -> list[Scan]:
     return stats_service.scan_query(db, window).filter(stats_service.rejected_condition()).order_by(
         Scan.created_at.desc(), Scan.id.desc()).offset(offset).limit(limit).all()
+
+
+@router.get("/admin/audit-events", response_model=list[AuditEventItem])
+def admin_audit_events(action: str | None = Query(None, max_length=80),
+                       limit: int = Query(50, ge=1, le=100), offset: int = Query(0, ge=0),
+                       db: Session = Depends(get_db),
+                       _actor: User = Depends(require_role("admin"))) -> list[dict]:
+    """Nhật ký kiểm toán mới nhất (append-only); actor đã xóa hiện id."""
+    query = db.query(AuditEvent, User.username).outerjoin(User, User.id == AuditEvent.actor_id)
+    if action:
+        query = query.filter(AuditEvent.action == action)
+    rows = (query.order_by(AuditEvent.created_at.desc(), AuditEvent.id.desc())
+            .offset(offset).limit(limit).all())
+    return [
+        {
+            "id": event.id,
+            "actor_id": event.actor_id,
+            "actor_name": username or (f"#{event.actor_id}" if event.actor_id is not None else "system"),
+            "action": event.action,
+            "resource_type": event.resource_type,
+            "resource_id": event.resource_id,
+            "outcome": event.outcome,
+            "details": event.details or {},
+            "created_at": event.created_at,
+        }
+        for event, username in rows
+    ]
 
 
 @router.get("/admin/scans/{scan_id}/image", response_class=FileResponse)

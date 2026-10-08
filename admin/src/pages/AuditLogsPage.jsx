@@ -1,88 +1,53 @@
-import { History, Search, Shield, ShieldAlert, ShieldCheck, User } from 'lucide-react'
-import { useState } from 'react'
+import { History, User } from 'lucide-react'
+import { useEffect, useState } from 'react'
 import DataTable from '../components/common/DataTable.jsx'
 import PageHeader from '../components/common/PageHeader.jsx'
 import StatusBadge from '../components/common/StatusBadge.jsx'
 import { useLanguage } from '../contexts/LanguageContext.jsx'
+import { adminAuditApi } from '../services/audit.js'
+import { getApiError } from '../services/client.js'
 
-const initialAuditLogs = [
-  {
-    id: 1,
-    timestamp: '2026-10-04 22:30:15',
-    actor: 'admin',
-    action: 'model.activated',
-    resource_type: 'model_version',
-    resource_id: '1',
-    details: 'Kích hoạt phiên bản MobileNetV2 Primary',
-    status: 'success',
-  },
-  {
-    id: 2,
-    timestamp: '2026-10-04 21:15:00',
-    actor: 'admin',
-    action: 'proposal.approved',
-    resource_type: 'disease_proposal',
-    resource_id: '4',
-    details: 'Duyệt đề xuất bệnh gỉ sắt ngô, chuyển vào disease_info',
-    status: 'success',
-  },
-  {
-    id: 3,
-    timestamp: '2026-10-04 19:42:10',
-    actor: 'manager_minh',
-    action: 'farm.member_added',
-    resource_type: 'farm',
-    resource_id: '2',
-    details: 'Gán người dùng ID 15 vào nông trại Ruộng A1',
-    status: 'success',
-  },
-  {
-    id: 4,
-    timestamp: '2026-10-04 18:20:44',
-    actor: 'farmer_nam',
-    action: 'user.password_changed',
-    resource_type: 'user',
-    resource_id: '12',
-    details: 'Đổi mật khẩu người dùng thành công',
-    status: 'success',
-  },
-  {
-    id: 5,
-    timestamp: '2026-10-04 16:05:32',
-    actor: 'technician_ha',
-    action: 'proposal.submitted',
-    resource_type: 'disease_proposal',
-    resource_id: '5',
-    details: 'Gửi đề xuất bổ sung bệnh thán thư ớt',
-    status: 'pending',
-  },
-  {
-    id: 6,
-    timestamp: '2026-10-04 14:12:00',
-    actor: 'admin',
-    action: 'user.provisioned',
-    resource_type: 'user',
-    resource_id: '16',
-    details: 'Khởi tạo tài khoản Kỹ thuật viên mới: technician_tuan',
-    status: 'success',
-  },
-]
+function formatTime(value, isVi) {
+  if (!value) return '—'
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return String(value)
+  return date.toLocaleString(isVi ? 'vi-VN' : 'en-US', { hour12: false })
+}
+
+function formatDetails(details) {
+  if (!details || typeof details !== 'object') return '—'
+  const entries = Object.entries(details)
+  if (!entries.length) return '—'
+  return entries.map(([key, value]) => `${key}: ${typeof value === 'object' ? JSON.stringify(value) : String(value)}`).join(' · ')
+}
 
 export default function AuditLogsPage() {
-  const { language } = useLanguage()
+  const { t, language } = useLanguage()
   const isVi = language === 'vi'
 
-  const [logs] = useState(initialAuditLogs)
+  const [logs, setLogs] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [message, setMessage] = useState('')
+
+  useEffect(() => {
+    let active = true
+    setLoading(true)
+    adminAuditApi.list({ limit: 100 })
+      .then((payload) => { if (active) setLogs(Array.isArray(payload) ? payload : []) })
+      .catch((error) => { if (active) setMessage(getApiError(error, t('audit.err_load'))) })
+      .finally(() => { if (active) setLoading(false) })
+    return () => { active = false }
+  }, [t])
 
   const columns = [
     {
-      key: 'timestamp',
+      key: 'created_at',
       label: isVi ? 'Thời gian' : 'Timestamp',
       sortable: true,
-      render: (val) => <span className="font-mono text-xs text-slate-500">{val}</span>,
+      render: (val) => <span className="font-mono text-xs text-slate-500">{formatTime(val, isVi)}</span>,
     },
     {
-      key: 'actor',
+      key: 'actor_name',
       label: isVi ? 'Người thực hiện' : 'Actor',
       sortable: true,
       render: (val) => (
@@ -113,10 +78,10 @@ export default function AuditLogsPage() {
     {
       key: 'details',
       label: isVi ? 'Chi tiết sự kiện' : 'Event Details',
-      render: (val) => <span className="text-xs text-slate-600 dark:text-slate-300">{val}</span>,
+      render: (val) => <span className="text-xs text-slate-600 dark:text-slate-300">{formatDetails(val)}</span>,
     },
     {
-      key: 'status',
+      key: 'outcome',
       label: isVi ? 'Trạng thái' : 'Status',
       render: (val) => <StatusBadge value={val === 'success' ? 'active' : 'pending'} />,
     },
@@ -133,12 +98,16 @@ export default function AuditLogsPage() {
             : 'Track all sensitive activities in the system: model activation, proposal approvals, and permission changes.'
         }
       />
+      {loading && <p className="mb-5 text-sm text-slate-500 dark:text-slate-400">{t('common.loading')}</p>}
+      {message && <p className="mb-5 rounded-2xl border border-slate-200 bg-white p-4 text-sm text-slate-700 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-200">{message}</p>}
 
       <div className="mt-6">
         <DataTable
           columns={columns}
           data={logs}
           searchPlaceholder={isVi ? 'Tìm theo hành động hoặc người thực hiện...' : 'Search by action or actor...'}
+          emptyTitle={isVi ? 'Chưa có sự kiện nào' : 'No events yet'}
+          emptyDescription={isVi ? 'Các thao tác quản trị sẽ được ghi lại tại đây.' : 'Admin actions will be recorded here.'}
         />
       </div>
     </div>
