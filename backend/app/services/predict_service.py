@@ -269,10 +269,56 @@ class PredictService:
                 self._cache.popitem(last=False)
             return loaded
 
+    def warmup(self, db: Session) -> dict[str, Any]:
+        """Tải trước (preload) các active model vào cache và chạy 1 forward pass giả lập.
+
+        Giúp triệt tiêu độ trễ 15-30s ở request scan đầu tiên sau khi khởi động app trên cloud.
+        """
+        warmed = []
+        started_all = time.perf_counter()
+        try:
+            active_models = (
+                db.query(ModelVersion)
+                .filter(
+                    ModelVersion.is_active.is_(True),
+                    ModelVersion.is_enabled.is_(True),
+                )
+                .order_by(ModelVersion.id.asc())
+                .all()
+            )
+            dummy_tensor = torch.zeros((1, 3, 224, 224), device=self.device)
+            for row in active_models:
+                if not row.file_path or not row.classes_path:
+                    continue
+                spec = ActiveModelSpec(
+                    id=row.id,
+                    version_name=row.version_name,
+                    model_type=row.model_type,
+                    file_path=row.file_path,
+                    classes_path=row.classes_path or "",
+                    temperature=row.temperature,
+                    sha256=row.sha256,
+                )
+                t0 = time.perf_counter()
+                try:
+                    loaded = self._load(spec)
+                    with torch.inference_mode():
+                        _ = loaded.model(dummy_tensor)
+                    latency = round((time.perf_counter() - t0) * 1000, 2)
+                    warmed.append({"model_type": spec.model_type, "version": spec.version_name, "latency_ms": latency})
+                    logger.info("Warmup thành công model %s (%s) trong %.1fms", spec.model_type, spec.version_name, latency)
+                except Exception as exc:
+                    logger.warning("Không thể warmup model %s: %s", spec.version_name, exc)
+        except Exception as query_exc:
+            logger.warning("Không thể truy vấn active models cho warmup: %s", query_exc)
+
+        total_ms = round((time.perf_counter() - started_all) * 1000, 2)
+        return {"warmed_count": len(warmed), "models": warmed, "total_ms": total_ms}
+
     def _predict_one(self, tensor: torch.Tensor, spec: ActiveModelSpec) -> dict[str, Any]:
         started = time.perf_counter()
         loaded = self._load(spec)
-        with torch.no_grad():
+        with torch.inference_mode():
             logits = loaded.model(tensor)
             if logits.shape != (1, len(loaded.classes)) or not torch.isfinite(logits).all():
                 raise ModelConfigurationError("Logits không hợp lệ")
@@ -429,10 +475,35 @@ class PredictService:
         msp_threshold = float(signals.get("msp", {}).get("threshold", 0.9334873557090759))
         js_threshold = self.get_js_divergence_threshold(mode, len(ordered_specs))
 
-        # Đối với các role đã đăng nhập có nhiều hơn 1 model (Standard / Advanced):
-        # Bắt buộc phải ra cả 2 tầng rồi mới trả ra kết quả.
-        # Với Guest (chế độ basic hoặc chỉ 1 model): dừng ở Tầng 1.
-        run_stage_2 = len(ordered_specs) > 1
+        # Phân luồng suy luận:
+        # 1. Guest (mode == "basic" hoặc chỉ 1 model): Dừng hoàn toàn ở Tầng 1.
+        # 2. Authenticated role (Standard / Advanced, nhiều hơn 1 model):
+        #    - High Conf Gate (Tầng 1 ổn): msp >= high_conf_msp và margin >= TOP1_MARGIN_THRESHOLD -> Cho qua ngay (Early Exit), KHÔNG chạy Tầng 2.
+        #    - Low Conf Gate (Chắc chắn không phải lá): msp < low_conf_msp -> Loại ngay từ Tầng 1 (Early Reject), KHÔNG chạy Tầng 2.
+        #    - Phân vân (Uncertainty zone): low_conf_msp <= msp < high_conf_msp (hoặc margin < TOP1_MARGIN_THRESHOLD) -> BẮT ĐẦU kích hoạt Tầng 2.
+        primary_conf = float(primary_res["confidence"]) if primary_res.get("confidence") is not None else 0.0
+        primary_margin = float(primary_res.get("top1_top2_margin") or 0.0)
+        primary_succeeded = primary_res.get("error_code") is None
+
+        if not primary_succeeded:
+            # Nếu Primary Model lỗi phần cứng/bộ nhớ và có auxiliary models:
+            # bắt buộc phải kích hoạt Tầng 2 để fallback cứu vãn
+            run_stage_2 = len(ordered_specs) > 1
+        elif mode == "basic" or len(ordered_specs) <= 1:
+            # Guest / Single model: Chỉ chạy và dừng ở Tầng 1
+            run_stage_2 = False
+        else:
+            # Role đã đăng nhập có nhiều model:
+            is_high_conf = (
+                primary_conf >= high_conf_msp
+                and primary_margin >= settings.TOP1_MARGIN_THRESHOLD
+            )
+            is_low_conf = primary_conf < low_conf_msp
+
+            if is_high_conf or is_low_conf:
+                run_stage_2 = False
+            else:
+                run_stage_2 = True
 
         if run_stage_2:
             aux_specs = ordered_specs[1:]
@@ -460,7 +531,7 @@ class PredictService:
         if not successful:
             raise ModelConfigurationError("Tất cả model đều inference thất bại")
 
-        # Xử lý khi chỉ dừng ở Tầng 1 (Guest mode hoặc single model)
+        # Xử lý khi chỉ dừng ở Tầng 1 (Guest mode, Early Exit hoặc Early Reject)
         if not run_stage_2:
             primary = successful[0]
             confidence = float(primary["confidence"])
@@ -470,20 +541,45 @@ class PredictService:
             energy_score = float(primary["energy_score"])
             ood_score = min(1.0, 0.4 * (1.0 - confidence) + 0.3 * entropy)
 
-            # Với Guest (tier basic): Kiểm tra tỉ lệ % đề ra theo ngưỡng calibrated MSP (~0.933487)
-            min_conf = msp_threshold if mode == "basic" else settings.CONFIDENCE_THRESHOLD
-            checks = [
-                {"rule": "confidence_below_threshold", "value": confidence,
-                 "threshold": min_conf, "comparison": ">=",
-                 "passed": confidence >= min_conf},
-                {"rule": "top1_top2_margin_too_small", "value": margin,
-                 "threshold": settings.TOP1_MARGIN_THRESHOLD, "comparison": ">=",
-                 "passed": margin >= settings.TOP1_MARGIN_THRESHOLD},
-            ]
-            failed_rules = [check["rule"] for check in checks if not check["passed"]]
-            rejection_reason = failed_rules[0] if failed_rules else None
-            validation_status = "accepted" if not failed_rules else "low_confidence"
-            ood_method = "msp" if mode == "basic" else "single_model"
+            if mode == "basic":
+                min_conf = msp_threshold
+                checks = [
+                    {"rule": "confidence_below_threshold", "value": confidence,
+                     "threshold": min_conf, "comparison": ">=",
+                     "passed": confidence >= min_conf},
+                    {"rule": "top1_top2_margin_too_small", "value": margin,
+                     "threshold": settings.TOP1_MARGIN_THRESHOLD, "comparison": ">=",
+                     "passed": margin >= settings.TOP1_MARGIN_THRESHOLD},
+                ]
+                failed_rules = [check["rule"] for check in checks if not check["passed"]]
+                rejection_reason = failed_rules[0] if failed_rules else None
+                validation_status = "accepted" if not failed_rules else "low_confidence"
+                ood_method = "msp"
+            elif confidence < low_conf_msp:
+                # Early Reject tại Tầng 1 cho Role đăng nhập
+                checks = [
+                    {"rule": "confidence_below_threshold", "value": confidence,
+                     "threshold": low_conf_msp, "comparison": ">=",
+                     "passed": False},
+                ]
+                failed_rules = ["confidence_below_threshold"]
+                rejection_reason = "confidence_below_threshold"
+                validation_status = "low_confidence"
+                ood_method = "low_confidence"
+            else:
+                # Early Exit (Tầng 1 rất tự tin) cho Role đăng nhập
+                checks = [
+                    {"rule": "confidence_below_threshold", "value": confidence,
+                     "threshold": high_conf_msp, "comparison": ">=",
+                     "passed": confidence >= high_conf_msp},
+                    {"rule": "top1_top2_margin_too_small", "value": margin,
+                     "threshold": settings.TOP1_MARGIN_THRESHOLD, "comparison": ">=",
+                     "passed": margin >= settings.TOP1_MARGIN_THRESHOLD},
+                ]
+                failed_rules = [check["rule"] for check in checks if not check["passed"]]
+                rejection_reason = failed_rules[0] if failed_rules else None
+                validation_status = "accepted" if not failed_rules else "low_confidence"
+                ood_method = "high_confidence"
 
             public_results = [
                 {key: value for key, value in item.items() if key not in {"all_probs", "classes"}}
@@ -518,7 +614,7 @@ class PredictService:
                     "ood_method": ood_method,
                     "primary_model": primary["model_type"],
                     "msp_calibrated": round(confidence, 6),
-                    "msp_threshold": min_conf,
+                    "msp_threshold": msp_threshold if mode == "basic" else None,
                     "high_conf_msp_threshold": high_conf_msp,
                     "low_conf_msp_threshold": low_conf_msp,
                     "checks": checks,

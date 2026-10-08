@@ -1,4 +1,5 @@
-"""Module khởi tạo ứng dụng FastAPI chính."""
+import logging
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -10,9 +11,30 @@ from app.schemas.error import ApiError
 from app.api.health import router as health_router
 from app.api.request_logging import RequestLoggingMiddleware, safe_server_error
 
+logger = logging.getLogger(__name__)
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Quản lý vòng đời ứng dụng: Tự động warm-up các model PyTorch khi khởi động."""
+    try:
+        from app.db.session import SessionLocal
+        from app.services.predict_service import predict_service
+        db = SessionLocal()
+        try:
+            stats = predict_service.warmup(db)
+            logger.info("Hoàn tất warm-up model lúc khởi động: %s", stats)
+        finally:
+            db.close()
+    except Exception as exc:
+        logger.warning("Bỏ qua warm-up model lúc khởi động: %s", exc)
+    yield
+
+
 app = FastAPI(
     title=settings.PROJECT_NAME,
     version=API_VERSION,
+    lifespan=lifespan,
     responses={code: {"model": ApiError} for code in (400, 401, 403, 404, 409, 413, 415, 422, 429, 500, 503, 504)},
 )
 app.add_exception_handler(Exception, safe_server_error)

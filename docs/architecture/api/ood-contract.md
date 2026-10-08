@@ -45,13 +45,17 @@ Giữ `.env` = `0.035`. Lịch sử: `.env` từng `0.3` khiến hệ thống ch
   - Đạt cả 2: `is_valid_leaf = true`, `validation_status = "accepted"`, trả về nhãn bệnh.
   - Không đạt: `is_valid_leaf = false`, `label = null`, `validation_status = "low_confidence"` (hoặc OOD) → FE hiển thị cảnh báo **"Không phải lá"**.
 
-### 2. Phân nhánh Role Đã Đăng Nhập (Bắt buộc chạy đủ 2 Tầng):
-- **Tầng 1 (Primary)**: Model do người dùng chọn (mặc định EffNet-B0 nếu không chọn).
-- **Tầng 2 (Auxiliary)**: Các model còn lại của Tier (Standard: 1 model phụ; Advanced: 2 model phụ). Không cho phép ngắt sớm ở Tầng 1.
-- **Tổng hợp 2 Tầng**: Soft-voting mean probabilities giữa các model, tính Jensen-Shannon Divergence.
-- **Kiểm định**:
-  - `confidence ≥ 0.3` (soft-vote ensemble)
-  - `top1_top2_margin ≥ 0.05`
-  - `js_divergence ≤ ngưỡng tier` (Standard: `~0.031`, Advanced: `~0.032`)
-- Fail confidence → `low_confidence`, fail margin/js → `ambiguous`.
-- `ood_score = 0.4·(1−conf) + 0.3·entropy + 0.3·js` ghi nhận phục vụ audit/xếp hạng.
+### 2. Phân nhánh Role Đã Đăng Nhập (Cơ chế Cascade 2 Tầng):
+- **Tầng 1 (Primary Model)**: Chạy model do người dùng chọn (mặc định EffNet-B0 nếu không chọn).
+  - **Tầng 1 ổn (High Conf Gate)**: Calibrated MSP $\ge 0.985229$ (p90 ID) và $\text{margin} \ge 0.05$ $\rightarrow$ **Cho qua ngay (Early Exit)**, trả kết quả lập tức (`is_valid_leaf = true`, `validation_status = "accepted"`), **KHÔNG chạy Tầng 2** (chỉ tốn 1 forward pass, tối ưu độ trễ).
+  - **Tầng 1 chắc chắn không phải lá (Low Conf Gate)**: Calibrated MSP $< 0.508453$ (p1 ID) $\rightarrow$ **Loại ngay từ Tầng 1 (Early Reject)**, `is_valid_leaf = false`, `label = null`, `validation_status = "low_confidence"`, **KHÔNG chạy Tầng 2**.
+  - **Tầng 1 phân vân (Vùng lửng / nghi ngờ)**: $0.508453 \le \text{Calibrated MSP} < 0.985229$ (hoặc $\text{margin} < 0.05$) $\rightarrow$ **Bắt đầu kích hoạt Tầng 2**.
+- **Tầng 2 (Auxiliary Models & Ensemble)**:
+  - Chạy các model còn lại của Tier (Standard: thêm 1 model phụ; Advanced: thêm 2 model phụ).
+  - Tổng hợp Soft-voting mean probabilities giữa các model và đo Jensen-Shannon (JS) Divergence.
+  - **Kiểm định**:
+    - `confidence ≥ 0.3` (soft-vote ensemble)
+    - `top1_top2_margin ≥ 0.05`
+    - `js_divergence ≤ ngưỡng tier` (Standard: `~0.031073`, Advanced: `~0.032090`)
+  - Fail confidence → `low_confidence`, fail margin/js → `ambiguous`.
+  - `ood_score = 0.4·(1−conf) + 0.3·entropy + 0.3·js` ghi nhận phục vụ audit/xếp hạng.

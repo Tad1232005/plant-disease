@@ -3,10 +3,11 @@
 | Đối tượng | Role | Đăng nhập | Tier tối đa | Model được phép chọn | Cơ chế suy luận | Chức năng chính |
 |---|---|---|---|---|---|---|
 | Khách | `guest` | Không | `basic` | Không (cố định `efficientnet_b0`) | **Chỉ Tầng 1** (MSP ≥ 0.933487, fail → "Không phải lá") | Quét thử tại `/guest/scan`, không lưu lịch sử, không gửi `farm_id` |
-| Nông dân | `user` | Bắt buộc | `standard` (2 model) | `efficientnet_b0`, `mobilenet_v2` | **Bắt buộc 2 Tầng** (Primary + Aux -> Ensemble) | Scan + lịch sử + farm của mình, tra cứu bệnh |
-| Kỹ thuật viên | `technician` | Bắt buộc | `advanced` (3 model) | `efficientnet_b0`, `mobilenet_v2`, `resnet50` | **Bắt buộc 2 Tầng** (Primary + Aux -> Ensemble) | Thêm Grad-CAM, top-3, gửi đề xuất bệnh (`/disease-proposals`) |
-| Quản lý | `manager` | Bắt buộc | `standard` | `efficientnet_b0`, `mobilenet_v2` | **Bắt buộc 2 Tầng** (Primary + Aux -> Ensemble) | Tạo Managed User (role `user`), gán vào farm, dashboard `/stats/farm/{id}` |
-| Quản trị | `admin` | Bắt buộc (app `:5174`) | `advanced` | `efficientnet_b0`, `mobilenet_v2`, `resnet50` | **Bắt buộc 2 Tầng** (Primary + Aux -> Ensemble) | Quản lý user/farm/disease/proposal/model-version, `stats/admin/overview` |
+| Nông dân tự do | `user` (`created_by = null`) | Bắt buộc | `standard` (2 model) | `efficientnet_b0`, `mobilenet_v2` | **Cascade 2 Tầng** (Tầng 1 ổn → pass ngay; phân vân → Tầng 2 ensemble) | Scan cá nhân + lịch sử cá nhân, tra cứu bệnh (**không gọi API Farm**) |
+| Nông dân thuộc trang trại | `user` (Managed, có `created_by`) | Bắt buộc | `standard` (2 model) | `efficientnet_b0`, `mobilenet_v2` | **Cascade 2 Tầng** (Tầng 1 ổn → pass ngay; phân vân → Tầng 2 ensemble) | Scan + gán vào farm được chỉ định (`/me/farms`), tra cứu bệnh |
+| Kỹ thuật viên | `technician` | Bắt buộc | `advanced` (3 model) | `efficientnet_b0`, `mobilenet_v2`, `resnet50` | **Cascade 2 Tầng** (Tầng 1 ổn → pass ngay; phân vân → Tầng 2 ensemble) | Thêm Grad-CAM, top-3, gửi đề xuất bệnh (`/disease-proposals`) |
+| Quản lý | `manager` | Bắt buộc | `standard` | `efficientnet_b0`, `mobilenet_v2` | **Cascade 2 Tầng** (Tầng 1 ổn → pass ngay; phân vân → Tầng 2 ensemble) | Tạo Managed User (role `user`), quản lý trang trại (`/farms`), dashboard `/stats/farm/{id}` |
+| Quản trị | `admin` | Bắt buộc (app `:5174`) | `advanced` | `efficientnet_b0`, `mobilenet_v2`, `resnet50` | **Cascade 2 Tầng** (Tầng 1 ổn → pass ngay; phân vân → Tầng 2 ensemble) | Quản lý user/farm/disease/proposal/model-version, `stats/admin/overview` |
 
 ## Ma trận tạo tài khoản
 

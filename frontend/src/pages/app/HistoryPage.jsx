@@ -134,10 +134,12 @@ export default function HistoryPage() {
   return (
     <div className="mx-auto max-w-7xl">
       <PageHeader eyebrow={copy.eyebrow} title={copy.title} description={copy.description} />
-      <div className={`mb-5 flex items-start gap-3 rounded-2xl border p-4 text-sm ${source === 'api' ? 'border-emerald-100 bg-emerald-50 text-emerald-800' : 'border-sky-100 bg-sky-50 text-sky-800'}`}>
-        {source === 'loading' ? <LoaderCircle className="mt-0.5 shrink-0 animate-spin" size={19} /> : <History className="mt-0.5 shrink-0" size={19} />}
-        <p className="leading-6">{sourceText}</p>
-      </div>
+      {source !== 'api' && source !== 'loading' && (
+        <div className="mb-5 flex items-start gap-3 rounded-2xl border border-sky-100 bg-sky-50 p-4 text-sm text-sky-800">
+          <History className="mt-0.5 shrink-0" size={19} />
+          <p className="leading-6">{sourceText}</p>
+        </div>
+      )}
       <DataTable columns={columns} data={rows} searchPlaceholder={copy.search} actions={(row) => <button type="button" onClick={() => openDetail(row)} className="rounded-lg p-2 text-slate-400 hover:bg-leaf-50 hover:text-leaf-700" aria-label={copy.detail}><Eye size={17} /></button>} emptyTitle={copy.empty} emptyDescription={copy.emptyText} />
 
       <Modal open={Boolean(detail)} onClose={() => setDetail(null)} title={copy.detailTitle} description={detail?.date} size="sm">

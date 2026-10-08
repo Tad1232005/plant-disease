@@ -65,8 +65,8 @@ def fake_result_with_probs(spec, order: int, probs: list[float]):
     }
 
 
-def test_authenticated_role_always_runs_two_stages_even_with_high_confidence(monkeypatch):
-    """Với role có nhiều model (Standard/Advanced), bắt buộc chạy đủ 2 tầng dù Primary rất tự tin."""
+def test_authenticated_role_stage_1_high_conf_skips_stage_2(monkeypatch):
+    """Khi Tầng 1 ổn (MSP >= 0.985229 & margin >= 0.05), cho qua ngay (Early Exit), không chạy Tầng 2."""
     service = PredictService()
     monkeypatch.setattr(settings, "PARALLEL_MODEL_INFERENCE", False)
 
@@ -84,10 +84,64 @@ def test_authenticated_role_always_runs_two_stages_even_with_high_confidence(mon
     assert result["validation_status"] == "accepted"
     assert result["is_valid_leaf"] is True
     assert result["models_requested"] == 3
+    assert result["models_succeeded"] == 1
+    assert result["decision_details"]["stage_reached"] == 1
+    assert result["decision_details"]["ood_method"] == "high_confidence"
+    # Chỉ model 1 (Tầng 1) được chạy, Tầng 2 được skip
+    assert executed_orders == [1]
+
+
+def test_authenticated_role_stage_1_low_conf_rejects_without_stage_2(monkeypatch):
+    """Khi Tầng 1 chắc chắn không phải lá (MSP < 0.508453), loại ngay, không chạy Tầng 2."""
+    service = PredictService()
+    monkeypatch.setattr(settings, "PARALLEL_MODEL_INFERENCE", False)
+
+    executed_orders = []
+
+    def tracking_predict(_tensor, spec, order):
+        executed_orders.append(order)
+        # MSP = 0.45 < low_conf_msp (~0.5085)
+        return fake_result_with_probs(spec, order, [0.45, 0.35, 0.20])
+
+    monkeypatch.setattr(service, "_safe_predict_one", tracking_predict)
+
+    specs = dummy_specs(3)
+    result = service.predict(image_bytes(), specs, "advanced")
+
+    assert result["validation_status"] == "low_confidence"
+    assert result["is_valid_leaf"] is False
+    assert result["label"] is None
+    assert result["rejection_reason"] == "confidence_below_threshold"
+    assert result["decision_details"]["stage_reached"] == 1
+    assert result["decision_details"]["ood_method"] == "low_confidence"
+    # Dừng ngay tại Tầng 1, không qua Tầng 2
+    assert executed_orders == [1]
+
+
+def test_authenticated_role_stage_1_uncertain_escalates_to_stage_2(monkeypatch):
+    """Khi Tầng 1 phân vân (0.508453 <= MSP < 0.985229), kích hoạt Tầng 2 để ensemble."""
+    service = PredictService()
+    monkeypatch.setattr(settings, "PARALLEL_MODEL_INFERENCE", False)
+
+    executed_orders = []
+
+    def tracking_predict(_tensor, spec, order):
+        executed_orders.append(order)
+        # MSP = 0.80 nằm trong vùng lửng
+        return fake_result_with_probs(spec, order, [0.80, 0.15, 0.05])
+
+    monkeypatch.setattr(service, "_safe_predict_one", tracking_predict)
+
+    specs = dummy_specs(3)
+    result = service.predict(image_bytes(), specs, "advanced")
+
+    assert result["validation_status"] == "accepted"
+    assert result["is_valid_leaf"] is True
+    assert result["models_requested"] == 3
     assert result["models_succeeded"] == 3
     assert result["decision_details"]["stage_reached"] == 2
     assert result["decision_details"]["ood_method"] == "ensemble"
-    # Cả 3 model (cả 2 tầng) đều được chạy
+    # Cả 3 model đều được chạy vì có escalation lên Tầng 2
     assert executed_orders == [1, 2, 3]
 
 

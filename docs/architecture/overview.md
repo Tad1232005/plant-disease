@@ -30,8 +30,11 @@ Backend (:8000)
   │
   ├─ [Nhánh Role đã đăng nhập]:
   │    ├─ Nhận model do user chọn làm Primary Model (FE chỉ hiện chọn model, không chọn single/ensemble).
-  │    └─ Bắt buộc chạy đủ 2 Tầng (Tầng 1: Primary Model + Tầng 2: các model phụ trợ trong tier).
-  │       Tổng hợp soft-vote mean probs, kiểm tra checks: confidence ≥ 0.3, margin ≥ 0.05, JS ≤ ngưỡng tier.
+  │    ├─ Chạy Tầng 1 (Primary Model):
+  │    │    ├─ Tầng 1 ổn (MSP ≥ 0.9852, margin ≥ 0.05) → Cho qua ngay (Early Exit), trả kết quả.
+  │    │    ├─ Tầng 1 chắc chắn không phải lá (MSP < 0.5085) → Loại ngay (Early Reject), is_valid_leaf = false.
+  │    │    └─ Tầng 1 phân vân (0.5085 ≤ MSP < 0.9852) → Kích hoạt Tầng 2 (Auxiliary Models).
+  │    └─ Tầng 2: Soft-vote mean probs, kiểm tra checks: confidence ≥ 0.3, margin ≥ 0.05, JS ≤ ngưỡng tier.
   │
   └─ complete_prediction → lưu Scan/ScanTopK/ScanModelResult (nếu đã đăng nhập)
      label + confidence + top_k + validation_status (accepted/low_confidence/ambiguous)
@@ -39,8 +42,8 @@ Backend (:8000)
 FE hiển thị kết quả chẩn đoán, cảnh báo "Không phải lá" (nếu fail), lịch sử, Grad-CAM.
 ```
 
-- Guest: không chọn model, không gửi `farm_id`, không lưu Scan, dừng ở Tầng 1.
-- Role đăng nhập: chọn model khả dụng theo role, bắt buộc chạy qua 2 tầng, lưu lịch sử Scan.
+- Guest: không chọn model, không gửi `farm_id`, không lưu Scan, chỉ chạy Tầng 1.
+- Role đăng nhập: chọn model khả dụng, cơ chế Cascade 2 Tầng (ổn cho qua ngay, phân vân mới qua tầng 2), lưu lịch sử Scan.
 - Auth: JWT access 15p + refresh 7 ngày (HttpOnly cookie); thu hồi bằng `token_version`.
 - Chi tiết flow ML: `ml/docs/FLOW.md`. Contract OOD: `api/ood-contract.md`.
 

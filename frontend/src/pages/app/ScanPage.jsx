@@ -90,49 +90,54 @@ export default function ScanPage({ guestMode = false }) {
   const [selectedModel, setSelectedModel] = useState('efficientnet_b0')
   const [availableModels, setAvailableModels] = useState(['efficientnet_b0'])
 
-  useEffect(() => {
-    if (guestMode) return
-    let active = true
-    getPredictCapabilities()
-      .then((data) => {
-        if (!active) return
-        if (Array.isArray(data?.allowed_model_types) && data.allowed_model_types.length > 0) {
-          setAvailableModels(data.allowed_model_types)
-          if (!data.allowed_model_types.includes(selectedModel)) {
-            setSelectedModel(data.allowed_model_types[0])
-          }
-        }
-      })
-      .catch(() => {
-        if (['technician', 'admin'].includes(user?.role)) {
-          setAvailableModels(['efficientnet_b0', 'mobilenet_v2', 'resnet50'])
-        } else {
-          setAvailableModels(['efficientnet_b0', 'mobilenet_v2'])
-        }
-      })
-    return () => { active = false }
-  }, [guestMode, user?.role])
+  const isManager = user?.role === 'manager'
+  const isManagedUser = user?.role === 'user' && Boolean(user?.created_by)
+  const canAccessFarms = !guestMode && (isManager || isManagedUser)
 
   useEffect(() => {
-    if (guestMode) {
+    if (guestMode || !canAccessFarms) {
       setFarms([])
-      return
     }
     let active = true
-    const fetchFarms = user?.role === 'manager' ? farmsApi.list : farmsApi.myFarms
-    fetchFarms()
-      .then((data) => {
-        if (!active || !Array.isArray(data)) return
-        setFarms(data)
-        if (data.length > 0) {
-          saveCollection('plantcare_farms', data)
+
+    const promises = [getPredictCapabilities()]
+    if (canAccessFarms) {
+      const fetchFarms = isManager ? farmsApi.list : farmsApi.myFarms
+      promises.push(fetchFarms())
+    }
+
+    Promise.allSettled(promises)
+      .then(([capsResult, farmsResult]) => {
+        if (!active) return
+
+        if (capsResult?.status === 'fulfilled') {
+          const data = capsResult.value
+          if (Array.isArray(data?.allowed_model_types) && data.allowed_model_types.length > 0) {
+            setAvailableModels(data.allowed_model_types)
+            if (!data.allowed_model_types.includes(selectedModel)) {
+              setSelectedModel(data.allowed_model_types[0])
+            }
+          }
+        } else {
+          if (['technician', 'admin'].includes(user?.role)) {
+            setAvailableModels(['efficientnet_b0', 'mobilenet_v2', 'resnet50'])
+          } else {
+            setAvailableModels(['efficientnet_b0', 'mobilenet_v2'])
+          }
+        }
+
+        if (canAccessFarms && farmsResult?.status === 'fulfilled' && Array.isArray(farmsResult.value)) {
+          setFarms(farmsResult.value)
+          if (farmsResult.value.length > 0) {
+            saveCollection('plantcare_farms', farmsResult.value)
+          }
+        } else {
+          setFarms([])
         }
       })
-      .catch(() => {
-        if (active) setFarms([])
-      })
+
     return () => { active = false }
-  }, [guestMode, user?.role])
+  }, [guestMode, user?.role, user?.created_by, canAccessFarms, isManager])
 
   useEffect(() => () => { if (previewUrl) URL.revokeObjectURL(previewUrl) }, [previewUrl])
 
@@ -199,7 +204,10 @@ export default function ScanPage({ guestMode = false }) {
   async function analyze() {
     if (!file) { setValidationError(language === 'vi' ? 'Vui lòng chọn ảnh lá cây trước khi phân tích.' : 'Choose a leaf image before analyzing.'); return }
     setLoading(true); setError(''); setResult(null); setResultMeta(null)
-    const payload = { farmId }
+    const payload = {}
+    if (canAccessFarms && farmId) {
+      payload.farmId = farmId
+    }
     if (!guestMode && selectedModel) {
       payload.primaryModel = selectedModel
     }
@@ -224,7 +232,7 @@ export default function ScanPage({ guestMode = false }) {
           <div className="flex items-center gap-3"><History className="shrink-0 text-sky-600" size={20} /><span><strong>{t('guest.noHistory')}.</strong> {t('scan.guestDescription')}</span></div>
           <Link to="/login" className="btn-secondary shrink-0"><LogIn size={16} />{t('guest.saveHistory')}</Link>
         </div>
-      ) : (
+      ) : canAccessFarms ? (
         <div className="mb-6 grid gap-4 rounded-3xl border border-leaf-100 bg-leaf-50/60 p-4 dark:border-leaf-900 dark:bg-leaf-950/30 sm:grid-cols-[1fr_auto] sm:items-center sm:p-5">
           {farms.length > 0 ? (
             <label>
@@ -244,14 +252,26 @@ export default function ScanPage({ guestMode = false }) {
                 {t('scan.farm')}
               </span>
               <p className="text-xs text-slate-500">
-                {user?.role === 'manager'
+                {isManager
                   ? (language === 'vi' ? 'Bạn chưa tạo khu vực nào trong Quản lý trang trại.' : 'No areas created yet in Farm Management.')
-                  : user?.created_by
-                    ? (language === 'vi' ? 'Chưa được phân công khu vực (liên hệ Quản lý để được gán vào trang trại).' : 'Not assigned to any area yet (contact your manager).')
-                    : (language === 'vi' ? 'Vườn cá nhân (Chẩn đoán được lưu vào hồ sơ cá nhân của bạn).' : 'Personal garden (Scans are saved to your personal history).')}
+                  : (language === 'vi' ? 'Chưa được phân công khu vực (liên hệ Quản lý để được gán vào trang trại).' : 'Not assigned to any area yet (contact your manager).')}
               </p>
             </div>
           )}
+          <div className="flex items-center gap-2 text-xs text-leaf-800 dark:text-leaf-200"><ShieldCheck size={17} /><span>{t('scan.privacy')}</span></div>
+        </div>
+      ) : (
+        <div className="mb-6 flex items-center justify-between rounded-3xl border border-leaf-100 bg-leaf-50/60 p-4 dark:border-leaf-900 dark:bg-leaf-950/30 sm:p-5">
+          <div className="flex items-center gap-3">
+            <span className="grid h-8 w-8 place-items-center rounded-xl bg-leaf-100 text-leaf-700 dark:bg-leaf-900 dark:text-leaf-300 font-bold text-xs">
+              🍃
+            </span>
+            <span className="text-xs text-slate-600 dark:text-slate-300">
+              {language === 'vi'
+                ? 'Chế độ chẩn đoán cá nhân (Kết quả chẩn đoán được lưu vào hồ sơ cá nhân của bạn).'
+                : 'Personal diagnosis mode (Results are saved to your personal history).'}
+            </span>
+          </div>
           <div className="flex items-center gap-2 text-xs text-leaf-800 dark:text-leaf-200"><ShieldCheck size={17} /><span>{t('scan.privacy')}</span></div>
         </div>
       )}
