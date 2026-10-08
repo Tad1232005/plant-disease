@@ -1,4 +1,19 @@
-import { ArrowLeft, Calendar, CheckCircle2, FileText, Leaf, LoaderCircle, MapPin, Printer, ShieldAlert, Sparkles } from 'lucide-react'
+import {
+  ArrowLeft,
+  Calendar,
+  CheckCircle2,
+  FileText,
+  Image as ImageIcon,
+  Layers,
+  Leaf,
+  LoaderCircle,
+  Lock,
+  LogIn,
+  MapPin,
+  Printer,
+  ShieldAlert,
+  Sparkles,
+} from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import PageHeader from '../../components/common/PageHeader.jsx'
@@ -22,31 +37,100 @@ export default function ScanDetailPage() {
   const isVi = language === 'vi'
 
   const [scan, setScan] = useState(null)
+  const [imageUrl, setImageUrl] = useState('')
+  const [imageLoading, setImageLoading] = useState(false)
   const [gradcamUrl, setGradcamUrl] = useState('')
+  const [gradcamLoading, setGradcamLoading] = useState(false)
   const [loading, setLoading] = useState(true)
+  const [errorStatus, setErrorStatus] = useState(null)
   const [error, setError] = useState('')
 
   useEffect(() => {
     let active = true
     setLoading(true)
+    setError('')
+    setErrorStatus(null)
+
+    let createdImageUrl = ''
+    let createdGradcamUrl = ''
+
     scansApi.getById(id)
       .then((data) => {
         if (!active) return
         setScan(data)
-        // Nếu có scan, thử nạp gradcam
-        getScanGradCam(id).then((url) => {
-          if (active) setGradcamUrl(url)
-        }).catch(() => {})
+
+        // 1. Tải ảnh gốc lá cây chụp thực tế
+        setImageLoading(true)
+        scansApi.getImage(id)
+          .then((url) => {
+            if (!active) {
+              URL.revokeObjectURL(url)
+              return
+            }
+            createdImageUrl = url
+            setImageUrl(url)
+          })
+          .catch(() => {})
+          .finally(() => {
+            if (active) setImageLoading(false)
+          })
+
+        // 2. Nạp ảnh Grad-CAM nếu ca quét được chấp nhận
+        if (data.is_valid_leaf && data.validation_status === 'accepted') {
+          setGradcamLoading(true)
+          getScanGradCam(id)
+            .then((url) => {
+              if (!active) {
+                URL.revokeObjectURL(url)
+                return
+              }
+              createdGradcamUrl = url
+              setGradcamUrl(url)
+            })
+            .catch(() => {})
+            .finally(() => {
+              if (active) setGradcamLoading(false)
+            })
+        }
       })
       .catch((err) => {
         if (!active) return
-        setError(err?.response?.data?.detail || (isVi ? 'Không tìm thấy ca quét này.' : 'Scan not found.'))
+        const status = err?.response?.status
+        setErrorStatus(status)
+        if (status === 401) {
+          setError(
+            isVi
+              ? 'Phiên đăng nhập đã hết hạn hoặc bạn chưa đăng nhập. Vui lòng đăng nhập để xem chi tiết ca quét.'
+              : 'Your session expired or you are not logged in. Please log in to view this scan.',
+          )
+        } else if (status === 403) {
+          setError(
+            isVi
+              ? `Bạn không có quyền truy cập ca quét #${id}. Ca quét này thuộc quyền sở hữu của một tài khoản khác theo quy định bảo mật riêng tư.`
+              : `You do not have permission to view scan #${id}. This scan belongs to another account under privacy policy.`,
+          )
+        } else if (status === 404) {
+          setError(
+            isVi
+              ? `Không tìm thấy ca quét #${id}. Ca quét này không tồn tại hoặc đã bị xóa khỏi hệ thống.`
+              : `Scan #${id} was not found or has been removed from the system.`,
+          )
+        } else {
+          setError(
+            err?.response?.data?.detail ||
+              (isVi ? 'Không thể tải thông tin ca quét này.' : 'Unable to load scan details.'),
+          )
+        }
       })
       .finally(() => {
         if (active) setLoading(false)
       })
 
-    return () => { active = false }
+    return () => {
+      active = false
+      if (createdImageUrl) URL.revokeObjectURL(createdImageUrl)
+      if (createdGradcamUrl) URL.revokeObjectURL(createdGradcamUrl)
+    }
   }, [id, isVi])
 
   if (loading) {
@@ -61,14 +145,43 @@ export default function ScanDetailPage() {
   }
 
   if (error || !scan) {
+    const isForbidden = errorStatus === 403
+    const isUnauthorized = errorStatus === 401
+
     return (
-      <div className="mx-auto max-w-2xl text-center py-16">
-        <ShieldAlert className="mx-auto text-rose-500" size={48} />
-        <h2 className="mt-4 text-xl font-bold text-slate-800">{isVi ? 'Không tìm thấy dữ liệu' : 'Data not found'}</h2>
-        <p className="mt-2 text-sm text-slate-500">{error}</p>
-        <Link to="/app/history" className="btn-secondary mt-6 inline-flex">
-          <ArrowLeft size={16} /> {isVi ? 'Quay lại Lịch sử' : 'Back to History'}
-        </Link>
+      <div className="mx-auto max-w-xl text-center py-16 px-4">
+        <div
+          className={`mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl ${
+            isForbidden
+              ? 'bg-amber-100 text-amber-700'
+              : isUnauthorized
+                ? 'bg-sky-100 text-sky-700'
+                : 'bg-rose-100 text-rose-600'
+          }`}
+        >
+          {isForbidden ? <Lock size={32} /> : isUnauthorized ? <LogIn size={32} /> : <ShieldAlert size={32} />}
+        </div>
+        <h2 className="text-xl font-bold text-slate-800">
+          {isForbidden
+            ? (isVi ? 'Không có quyền truy cập ca quét' : 'Access Restricted')
+            : isUnauthorized
+              ? (isVi ? 'Yêu cầu đăng nhập' : 'Authentication Required')
+              : (isVi ? 'Không tìm thấy dữ liệu' : 'Data Not Found')}
+        </h2>
+        <p className="mt-3 text-sm leading-6 text-slate-600 bg-slate-50 rounded-xl p-4 border border-slate-200/80">
+          {error}
+        </p>
+
+        <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
+          <Link to="/app/history" className="btn-secondary inline-flex items-center gap-1.5 text-xs">
+            <ArrowLeft size={16} /> {isVi ? 'Quay lại Lịch sử' : 'Back to History'}
+          </Link>
+          {(isForbidden || isUnauthorized) && (
+            <Link to="/login" className="btn-primary inline-flex items-center gap-1.5 text-xs">
+              <LogIn size={16} /> {isForbidden ? (isVi ? 'Đổi tài khoản đăng nhập' : 'Switch Account') : (isVi ? 'Đăng nhập ngay' : 'Log in')}
+            </Link>
+          )}
+        </div>
       </div>
     )
   }
@@ -100,7 +213,7 @@ export default function ScanDetailPage() {
         description={`${dateFormatted} • Model: ${scan.model_version || 'Ensemble Cascade'}`}
       />
 
-      <div className="mt-6 grid gap-6 lg:grid-cols-[1.2fr_0.8fr]">
+      <div className="mt-6 grid gap-6 lg:grid-cols-[1.15fr_0.85fr]">
         {/* Kết quả chính & khuyến nghị */}
         <div className="space-y-6">
           <div className="card overflow-hidden">
@@ -143,6 +256,54 @@ export default function ScanDetailPage() {
                 </div>
               </div>
 
+              {/* So sánh đối chiếu 2 tầng (nếu có model_results) */}
+              {scan.model_results && scan.model_results.length > 1 && (
+                <div className="rounded-2xl border border-slate-200/80 bg-slate-50/70 p-4">
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center gap-2">
+                      <Layers size={16} className="text-leaf-600" />
+                      <span className="text-xs font-bold uppercase tracking-wider text-slate-700">
+                        {isVi ? 'Đối chiếu kiểm định 2 tầng' : 'Two-Tier Model Verification'}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs">
+                    {scan.model_results.map((m, idx) => {
+                      const isPrimary = (scan.model_version && m.version_name.includes(scan.model_version)) || idx === 0
+                      const mConf = toPercent(m.confidence)
+                      return (
+                        <div
+                          key={idx}
+                          className={`rounded-xl p-2.5 border transition-all ${
+                            isPrimary
+                              ? 'bg-white border-leaf-400 shadow-xs'
+                              : 'bg-white/60 border-slate-200'
+                          }`}
+                        >
+                          <div className="flex items-center justify-between text-[11px] mb-1">
+                            <span className="font-semibold text-slate-700 truncate" title={m.version_name}>
+                              {m.version_name.replace(/_f_v\d+$/, '').replace(/_/g, ' ')}
+                            </span>
+                            {isPrimary && (
+                              <span className="text-[9px] font-bold uppercase tracking-wider text-leaf-700 bg-leaf-50 px-1 rounded">
+                                {isVi ? 'Chính' : 'Primary'}
+                              </span>
+                            )}
+                          </div>
+                          <div className="flex items-baseline justify-between">
+                            <span className="text-base font-black text-slate-800">{mConf.toFixed(1)}%</span>
+                            <span className="text-[10px] text-slate-400 truncate max-w-[100px]" title={m.predicted_label}>
+                              {friendlyLabel(m.predicted_label)}
+                            </span>
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+              )}
+
               {scan.treatment && (
                 <div className="rounded-2xl border border-emerald-100 bg-emerald-50/60 p-4">
                   <div className="flex items-center gap-2 text-emerald-800">
@@ -156,20 +317,51 @@ export default function ScanDetailPage() {
           </div>
         </div>
 
-        {/* Khối hiển thị ảnh và Grad-CAM */}
+        {/* Khối hiển thị ảnh gốc và Grad-CAM */}
         <div className="space-y-6">
+          {/* 1. Ảnh lá cây chụp gốc */}
           <div className="card p-5">
-            <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-3">
+            <h4 className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-slate-500 mb-3">
+              <ImageIcon size={15} className="text-leaf-600" />
+              {isVi ? 'Ảnh chụp lá cây gốc' : 'Original Leaf Image'}
+            </h4>
+            <div className="relative aspect-square w-full overflow-hidden rounded-2xl bg-slate-900 flex items-center justify-center">
+              {imageLoading ? (
+                <div className="flex flex-col items-center gap-2 text-slate-400 text-xs">
+                  <LoaderCircle className="animate-spin text-leaf-500" size={24} />
+                  <span>{isVi ? 'Đang tải ảnh...' : 'Loading image...'}</span>
+                </div>
+              ) : imageUrl ? (
+                <img src={imageUrl} alt="Original Scan Leaf" className="h-full w-full object-contain" />
+              ) : (
+                <p className="text-xs text-slate-400">
+                  {isVi ? 'Không thể tải ảnh gốc' : 'Unable to load original image'}
+                </p>
+              )}
+            </div>
+          </div>
+
+          {/* 2. Bản đồ nhiệt Grad-CAM */}
+          <div className="card p-5">
+            <h4 className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-slate-500 mb-3">
+              <Sparkles size={15} className="text-amber-500" />
               {isVi ? 'Bản đồ nhiệt Grad-CAM' : 'Grad-CAM Heatmap'}
             </h4>
-            <div className="relative aspect-square w-full overflow-hidden rounded-2xl bg-slate-900">
-              {gradcamUrl ? (
+            <div className="relative aspect-square w-full overflow-hidden rounded-2xl bg-slate-900 flex items-center justify-center">
+              {gradcamLoading ? (
+                <div className="flex flex-col items-center gap-2 text-slate-400 text-xs">
+                  <LoaderCircle className="animate-spin text-amber-500" size={24} />
+                  <span>{isVi ? 'Đang tạo heatmap mô hình...' : 'Generating heatmap...'}</span>
+                </div>
+              ) : gradcamUrl ? (
                 <img src={gradcamUrl} alt="Grad-CAM" className="h-full w-full object-contain" />
               ) : (
                 <div className="flex h-full w-full flex-col items-center justify-center p-6 text-center text-slate-400">
                   <Sparkles size={28} className="text-amber-500/70" />
                   <p className="mt-2 text-xs">
-                    {isVi ? 'Đang tạo hoặc xem heatmap mô hình...' : 'Generating or viewing model heatmap...'}
+                    {isValidLeaf
+                      ? (isVi ? 'Chưa tạo hoặc không khả dụng cho ca quét này.' : 'Grad-CAM not available.')
+                      : (isVi ? 'Không hỗ trợ Grad-CAM cho ảnh OOD.' : 'Grad-CAM unsupported for OOD.')}
                   </p>
                 </div>
               )}

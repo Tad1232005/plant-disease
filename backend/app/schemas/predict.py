@@ -54,6 +54,8 @@ class PredictResponse(BaseModel):
     # label=None nghĩa là policy từ chối chẩn đoán; top_k vẫn giữ để audit.
     label: Optional[str] = None
     confidence: float = Field(..., ge=0, le=1)
+    primary_confidence: Optional[float] = Field(default=None, ge=0, le=1)
+    ensemble_confidence: Optional[float] = Field(default=None, ge=0, le=1)
     is_valid_leaf: bool = Field(description="Legacy: policy accepted, KHÔNG phải kết quả nhận diện lá.", deprecated=True)
     input_assessment: InputAssessment = Field(default_factory=InputAssessment)
     top_k: list[TopKResult]

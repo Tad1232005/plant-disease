@@ -10,6 +10,13 @@ import { scansApi } from '../../api/scans.js'
 import { farmsApi } from '../../api/farms.js'
 import { loadCollection } from '../../utils/storage.js'
 
+function friendlyLabel(label = '') {
+  return String(label)
+    .replaceAll('___', ' - ')
+    .replaceAll('_', ' ')
+    .replace(/\b\w/g, (letter) => letter.toUpperCase())
+}
+
 const roleContent = {
   vi: { user: {
     eyebrow: 'Không gian nông dân',
@@ -47,51 +54,75 @@ export default function DashboardPage() {
   const content = roleContent[language][user.role] || roleContent[language].user
   const chart = [45, 68, 54, 82, 64, 92, 76]
 
-  const [realScans, setRealScans] = useState(() => loadCollection('plantcare_scan_history', scanHistory))
+  const isDemo = typeof window !== 'undefined' && localStorage.getItem('plantcare_access_token') === 'plantcare_demo_session'
+  const [realScans, setRealScans] = useState(() => (isDemo ? loadCollection('plantcare_scan_history', scanHistory) : []))
   const [totalScans, setTotalScans] = useState(0)
   const [healthyCount, setHealthyCount] = useState(0)
   const [attentionCount, setAttentionCount] = useState(0)
-  const [farmCount, setFarmCount] = useState(1)
+  const [farmCount, setFarmCount] = useState(0)
+
+  const [loading, setLoading] = useState(true)
+
+  const isManager = user?.role === 'manager'
+  const isManagedUser = user?.role === 'user' && Boolean(user?.created_by)
+  const canAccessFarms = isManager || isManagedUser
 
   useEffect(() => {
     let active = true
-    scansApi.history()
-      .then((data) => {
+
+    const promises = [scansApi.history()]
+    if (canAccessFarms) {
+      const fetchFarms = isManager ? farmsApi.list : farmsApi.myFarms
+      promises.push(fetchFarms())
+    }
+
+    Promise.allSettled(promises)
+      .then(([scansResult, farmsResult]) => {
         if (!active) return
-        const items = data?.items || (Array.isArray(data) ? data : [])
-        if (items.length > 0) {
-          const mapped = items.map((item) => ({
-            id: item.id,
-            result: item.is_valid_leaf ? (item.predicted_label || 'Đã phân tích') : 'Ảnh không hợp lệ',
-            farm: item.farm_name || (item.farm_id ? `Farm #${item.farm_id}` : 'Vườn chung'),
-            confidence: Number(((item.confidence || 0) * 100).toFixed(1)),
-            severity: String(item.predicted_label || '').toLowerCase().includes('healthy') ? 'low' : 'medium',
-            date: item.created_at ? new Intl.DateTimeFormat('vi-VN', { dateStyle: 'short' }).format(new Date(item.created_at)) : 'Hôm nay',
-          }))
-          setRealScans(mapped)
-          const total = data.total ?? mapped.length
-          setTotalScans(total)
-          const healthy = mapped.filter((s) => s.severity === 'low').length
-          setHealthyCount(healthy)
-          setAttentionCount(Math.max(0, mapped.length - healthy))
+
+        if (scansResult?.status === 'fulfilled') {
+          const data = scansResult.value
+          const items = data?.items || (Array.isArray(data) ? data : [])
+          if (items.length > 0) {
+            const mapped = items.map((item) => ({
+              id: item.id,
+              result: item.is_valid_leaf ? (item.predicted_label || 'Đã phân tích') : 'Ảnh không hợp lệ',
+              farm: item.farm_name || (item.farm_id ? `Farm #${item.farm_id}` : (language === 'vi' ? 'Vườn cá nhân' : 'Personal garden')),
+              confidence: Number(((item.confidence || 0) * 100).toFixed(1)),
+              severity: String(item.predicted_label || '').toLowerCase().includes('healthy') ? 'low' : 'medium',
+              date: item.created_at ? new Intl.DateTimeFormat('vi-VN', { dateStyle: 'short' }).format(new Date(item.created_at)) : 'Hôm nay',
+            }))
+            setRealScans(mapped)
+            const total = data.total ?? mapped.length
+            setTotalScans(total)
+            const healthy = mapped.filter((s) => s.severity === 'low').length
+            setHealthyCount(healthy)
+            setAttentionCount(Math.max(0, mapped.length - healthy))
+          } else {
+            setRealScans([])
+            setTotalScans(0)
+            setHealthyCount(0)
+            setAttentionCount(0)
+          }
+        }
+
+        if (farmsResult?.status === 'fulfilled' && Array.isArray(farmsResult.value)) {
+          setFarmCount(farmsResult.value.length)
         }
       })
-      .catch(() => {})
-
-    farmsApi.list()
-      .then((farms) => {
-        if (!active || !Array.isArray(farms)) return
-        setFarmCount(farms.length)
+      .finally(() => {
+        if (active) setLoading(false)
       })
-      .catch(() => {})
 
     return () => { active = false }
-  }, [])
+  }, [user?.role, user?.created_by, canAccessFarms, isManager, language])
 
   const primaryAction = user.role === 'manager'
     ? { to: '/app/farm-dashboard', label: copy.farmDashboard, icon: BarChart3 }
     : { to: '/app/scan', label: copy.newScan, icon: ScanLine }
   const PrimaryIcon = primaryAction.icon
+
+  const userAlerts = realScans.filter((s) => s.severity !== 'low' && s.result !== 'Ảnh không hợp lệ')
 
   return (
     <div className="mx-auto max-w-7xl">
@@ -110,10 +141,14 @@ export default function DashboardPage() {
       </section>
 
       <section className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <StatCard icon={ScanLine} label={copy.scans} value={String(totalScans || realScans.length).padStart(2, '0')} note="Thật từ DB" tone="green" />
-        <StatCard icon={CheckCircle2} label={copy.healthy} value={String(healthyCount || Math.round(realScans.length * 0.75)).padStart(2, '0')} note="Tỷ lệ cao" tone="blue" />
-        <StatCard icon={AlertTriangle} label={copy.attention} value={String(attentionCount || Math.max(0, realScans.length - healthyCount)).padStart(2, '0')} tone="amber" />
-        <StatCard icon={Sprout} label={user.role === 'manager' ? copy.managed : copy.mine} value={String(farmCount).padStart(2, '0')} tone="purple" />
+        <StatCard icon={ScanLine} label={copy.scans} value={String(totalScans).padStart(2, '0')} note={language === 'vi' ? 'Thật từ DB' : 'From DB'} tone="green" />
+        <StatCard icon={CheckCircle2} label={copy.healthy} value={String(healthyCount).padStart(2, '0')} note={language === 'vi' ? 'Mẫu khỏe mạnh' : 'Healthy'} tone="blue" />
+        <StatCard icon={AlertTriangle} label={copy.attention} value={String(attentionCount).padStart(2, '0')} note={language === 'vi' ? 'Mẫu cần chú ý' : 'Needs attention'} tone="amber" />
+        {canAccessFarms ? (
+          <StatCard icon={Sprout} label={isManager ? copy.managed : copy.mine} value={String(farmCount).padStart(2, '0')} tone="purple" />
+        ) : (
+          <StatCard icon={Leaf} label={language === 'vi' ? 'Hồ sơ tài khoản' : 'Account mode'} value={language === 'vi' ? 'Cá nhân' : 'Personal'} note={language === 'vi' ? 'Nông dân tự do' : 'Independent'} tone="purple" />
+        )}
       </section>
 
       <section className="mt-6 grid gap-6 xl:grid-cols-[1.25fr_.75fr]">
@@ -140,8 +175,42 @@ export default function DashboardPage() {
             <span className="grid h-10 w-10 place-items-center rounded-xl bg-amber-50 text-amber-600"><AlertTriangle size={20} /></span>
           </div>
           <div className="mt-5 space-y-3">
-            <div className="rounded-2xl border border-rose-100 bg-rose-50/60 p-4"><div className="flex items-center justify-between gap-3"><p className="font-bold text-slate-800">{language === 'vi' ? 'Ruộng ngô C3' : 'Corn Field C3'}</p><StatusBadge value="high" /></div><p className="mt-2 text-sm text-slate-500">{copy.cornAlert}</p></div>
-            <div className="rounded-2xl border border-amber-100 bg-amber-50/60 p-4"><div className="flex items-center justify-between gap-3"><p className="font-bold text-slate-800">{language === 'vi' ? 'Khu khoai tây B2' : 'Potato Area B2'}</p><StatusBadge value="medium" /></div><p className="mt-2 text-sm text-slate-500">{copy.potatoAlert}</p></div>
+            {canAccessFarms ? (
+              <>
+                <div className="rounded-2xl border border-rose-100 bg-rose-50/60 p-4"><div className="flex items-center justify-between gap-3"><p className="font-bold text-slate-800">{language === 'vi' ? 'Ruộng ngô C3' : 'Corn Field C3'}</p><StatusBadge value="high" /></div><p className="mt-2 text-sm text-slate-500">{copy.cornAlert}</p></div>
+                <div className="rounded-2xl border border-amber-100 bg-amber-50/60 p-4"><div className="flex items-center justify-between gap-3"><p className="font-bold text-slate-800">{language === 'vi' ? 'Khu khoai tây B2' : 'Potato Area B2'}</p><StatusBadge value="medium" /></div><p className="mt-2 text-sm text-slate-500">{copy.potatoAlert}</p></div>
+              </>
+            ) : userAlerts.length > 0 ? (
+              userAlerts.slice(0, 2).map((alert) => (
+                <div key={alert.id} className={`rounded-2xl border p-4 ${alert.severity === 'high' ? 'border-rose-100 bg-rose-50/60' : 'border-amber-100 bg-amber-50/60'}`}>
+                  <div className="flex items-center justify-between gap-3">
+                    <p className="font-bold text-slate-800">{friendlyLabel(alert.result)}</p>
+                    <StatusBadge value={alert.severity} />
+                  </div>
+                  <p className="mt-2 text-sm text-slate-500">
+                    {language === 'vi'
+                      ? `Phát hiện: ${alert.date} • Độ tin cậy: ${alert.confidence}%`
+                      : `Detected: ${alert.date} • Confidence: ${alert.confidence}%`}
+                  </p>
+                </div>
+              ))
+            ) : (
+              <div className="rounded-2xl border border-emerald-100 bg-emerald-50/60 p-4">
+                <div className="flex items-center justify-between gap-3">
+                  <p className="font-bold text-emerald-800">{language === 'vi' ? 'Vườn cây an toàn' : 'Healthy Garden'}</p>
+                  <StatusBadge value="low" />
+                </div>
+                <p className="mt-2 text-sm text-slate-500">
+                  {language === 'vi'
+                    ? (realScans.length === 0
+                        ? 'Chưa có mẫu chẩn đoán nào. Hãy tải ảnh lá cây để bắt đầu theo dõi sức khỏe cây trồng.'
+                        : 'Không phát hiện mầm bệnh trên các mẫu lá gần nhất.')
+                    : (realScans.length === 0
+                        ? 'No diagnosis data yet. Upload a leaf image to start.'
+                        : 'No disease detected in recent leaf samples.')}
+                </p>
+              </div>
+            )}
           </div>
         </div>
       </section>
@@ -149,12 +218,21 @@ export default function DashboardPage() {
       <section className="card mt-6 overflow-hidden">
         <div className="flex items-center justify-between border-b border-slate-100 p-5 sm:p-6"><div><h2 className="text-lg font-extrabold text-slate-900">{copy.latest}</h2><p className="mt-1 text-sm text-slate-400">{copy.historyUpdate}</p></div><Link to="/app/history" className="inline-flex items-center gap-1.5 text-sm font-bold text-leaf-700">{copy.all} <ArrowRight size={16} /></Link></div>
         <div className="divide-y divide-slate-100">
-          {realScans.slice(0, 3).map((item) => (
-            <div key={item.id} className="flex flex-col justify-between gap-3 px-5 py-4 transition hover:bg-slate-50 sm:flex-row sm:items-center sm:px-6">
-              <div className="flex items-center gap-3"><span className="grid h-10 w-10 place-items-center rounded-xl bg-leaf-50 text-leaf-700"><Leaf size={18} /></span><div><p className="text-sm font-bold text-slate-800">{item.result}</p><p className="mt-0.5 text-xs text-slate-400">{item.farm}</p></div></div>
-              <div className="flex items-center justify-between gap-5 sm:justify-end"><StatusBadge value={item.severity} /><span className="text-sm font-extrabold text-slate-700">{item.confidence}%</span><span className="inline-flex items-center gap-1 text-xs text-slate-400"><Clock3 size={13} />{item.date.split(' ')[0]}</span></div>
+          {realScans.length === 0 ? (
+            <div className="p-8 text-center text-sm text-slate-400">
+              <p>{language === 'vi' ? 'Chưa có lượt chẩn đoán nào được lưu.' : 'No diagnoses recorded yet.'}</p>
+              <Link to="/app/scan" className="mt-2 inline-flex items-center gap-1 font-bold text-leaf-700 hover:underline">
+                {language === 'vi' ? 'Chẩn đoán mẫu lá ngay' : 'Diagnose a leaf now'} →
+              </Link>
             </div>
-          ))}
+          ) : (
+            realScans.slice(0, 3).map((item) => (
+              <div key={item.id} className="flex flex-col justify-between gap-3 px-5 py-4 transition hover:bg-slate-50 sm:flex-row sm:items-center sm:px-6">
+                <div className="flex items-center gap-3"><span className="grid h-10 w-10 place-items-center rounded-xl bg-leaf-50 text-leaf-700"><Leaf size={18} /></span><div><p className="text-sm font-bold text-slate-800">{friendlyLabel(item.result)}</p><p className="mt-0.5 text-xs text-slate-400">{item.farm}</p></div></div>
+                <div className="flex items-center justify-between gap-5 sm:justify-end"><StatusBadge value={item.severity} /><span className="text-sm font-extrabold text-slate-700">{item.confidence}%</span><span className="inline-flex items-center gap-1 text-xs text-slate-400"><Clock3 size={13} />{item.date.split(' ')[0]}</span></div>
+              </div>
+            ))
+          )}
         </div>
       </section>
     </div>

@@ -1,5 +1,5 @@
 import { ExternalLink, Eye, History, Leaf, LoaderCircle, ShieldAlert } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { scansApi } from '../../api/scans.js'
 import DataTable from '../../components/common/DataTable.jsx'
@@ -9,11 +9,15 @@ import StatusBadge from '../../components/common/StatusBadge.jsx'
 import { scanHistory } from '../../data/demoData.js'
 import { loadCollection } from '../../utils/storage.js'
 import { usePreferences } from '../../contexts/PreferencesContext.jsx'
+import { useAuth } from '../../contexts/AuthContext.jsx'
 
 const HISTORY_KEY = 'plantcare_scan_history'
 
 function friendlyLabel(label = '') {
-  return String(label).replaceAll('_', ' ').replace(/\b\w/g, (letter) => letter.toUpperCase())
+  return String(label)
+    .replaceAll('___', ' - ')
+    .replaceAll('_', ' ')
+    .replace(/\b\w/g, (letter) => letter.toUpperCase())
 }
 
 function toPercent(value) {
@@ -26,29 +30,45 @@ function unwrapList(payload) {
   return payload?.items || payload?.scans || payload?.data || []
 }
 
-function normalizeScan(scan, language = 'vi') {
+function normalizeScan(scan, language = 'vi', farms = []) {
   const rawDate = scan.date || scan.created_at || scan.scanned_at
   const parsedDate = rawDate ? new Date(rawDate) : null
   const date = parsedDate && !Number.isNaN(parsedDate.valueOf())
     ? new Intl.DateTimeFormat(language === 'vi' ? 'vi-VN' : 'en-US', { dateStyle: 'short', timeStyle: 'short' }).format(parsedDate)
     : rawDate || (language === 'vi' ? 'Chưa có thời gian' : 'No timestamp')
   const confidence = toPercent(scan.confidence)
-  const farmName = typeof scan.farm === 'string' ? scan.farm : scan.farm?.name
-  const result = scan.result || scan.label || scan.prediction || (language === 'vi' ? 'Chưa có kết quả' : 'No result')
+
+  const matchedFarm = Array.isArray(farms) ? farms.find((f) => String(f.id) === String(scan.farm_id)) : null
+  const farmName = typeof scan.farm === 'string'
+    ? scan.farm
+    : scan.farm?.name || matchedFarm?.name || scan.farm_name || (scan.farm_id ? `Khu vực #${scan.farm_id}` : (language === 'vi' ? 'Không gắn khu vực' : 'No farm'))
+
+  const isValidLeaf = scan.is_valid_leaf ?? (scan.validation_status === 'accepted')
+  const label = scan.predicted_label || scan.result || scan.label || scan.prediction
+
+  let result = ''
+  if (!isValidLeaf || scan.validation_status === 'low_confidence' || scan.validation_status === 'ambiguous') {
+    result = language === 'vi' ? 'Ảnh ngoài miền dữ liệu' : 'Out of distribution'
+  } else if (label) {
+    result = label
+  } else {
+    result = language === 'vi' ? 'Chưa có kết quả' : 'No result'
+  }
+
   return {
     ...scan,
     id: scan.id || scan.scan_id,
     date,
-    farm: farmName || scan.farm_name || (language === 'vi' ? 'Không gắn khu vực' : 'No farm'),
+    farm: farmName,
     result,
     confidence: Number(confidence.toFixed(1)),
     severity: scan.severity || (String(result).toLowerCase().includes('healthy') ? 'low' : 'medium'),
-    top_k: scan.top_k || [],
-    is_valid_leaf: scan.is_valid_leaf ?? true,
-    leafStatus: (scan.is_valid_leaf ?? true) ? 'valid' : 'invalid',
+    top_k: scan.top_k || scan.top3 || [],
+    is_valid_leaf: isValidLeaf,
+    leafStatus: isValidLeaf ? 'valid' : 'invalid',
     treatment: scan.treatment || scan.recommendation || (language === 'vi'
-      ? ((scan.is_valid_leaf ?? true) ? 'Tiếp tục theo dõi và đối chiếu triệu chứng thực tế.' : 'Chụp lại một lá cây rõ nét dưới ánh sáng tự nhiên.')
-      : ((scan.is_valid_leaf ?? true) ? 'Continue monitoring and compare with real symptoms.' : 'Retake a clear leaf photo in natural light.')),
+      ? (isValidLeaf ? 'Tiếp tục theo dõi và đối chiếu triệu chứng thực tế.' : 'Chụp lại một lá cây rõ nét dưới ánh sáng tự nhiên.')
+      : (isValidLeaf ? 'Continue monitoring and compare with real symptoms.' : 'Retake a clear leaf photo in natural light.')),
   }
 }
 
@@ -64,28 +84,32 @@ export default function HistoryPage() {
   const [detail, setDetail] = useState(null)
   const [detailLoading, setDetailLoading] = useState(false)
 
+  const { user } = useAuth()
+  const farms = useMemo(() => loadCollection('plantcare_farms', []), [])
+
   useEffect(() => {
     let active = true
+    const historyKey = user?.id ? `plantcare_scan_history_${user.id}` : HISTORY_KEY
     scansApi.history()
       .then((payload) => {
         if (!active) return
-        setRows(unwrapList(payload).map((item) => normalizeScan(item, language)))
+        setRows(unwrapList(payload).map((item) => normalizeScan(item, language, farms)))
         setSource('api')
       })
       .catch(() => {
         if (!active) return
-        const localRows = loadCollection(HISTORY_KEY, [])
-        setRows((localRows.length ? localRows : scanHistory).map((item) => normalizeScan(item, language)))
+        const localRows = loadCollection(historyKey, [])
+        setRows((localRows.length ? localRows : scanHistory).map((item) => normalizeScan(item, language, farms)))
         setSource(localRows.length ? 'local' : 'demo')
       })
     return () => { active = false }
-  }, [language])
+  }, [language, user?.id, farms])
 
   async function openDetail(row) {
     setDetail(row)
     if (source !== 'api' || !row.id) return
     setDetailLoading(true)
-    try { setDetail(normalizeScan(await scansApi.getById(row.id), language)) }
+    try { setDetail(normalizeScan(await scansApi.getById(row.id), language, farms)) }
     catch { setDetail(row) }
     finally { setDetailLoading(false) }
   }
@@ -110,10 +134,12 @@ export default function HistoryPage() {
   return (
     <div className="mx-auto max-w-7xl">
       <PageHeader eyebrow={copy.eyebrow} title={copy.title} description={copy.description} />
-      <div className={`mb-5 flex items-start gap-3 rounded-2xl border p-4 text-sm ${source === 'api' ? 'border-emerald-100 bg-emerald-50 text-emerald-800' : 'border-sky-100 bg-sky-50 text-sky-800'}`}>
-        {source === 'loading' ? <LoaderCircle className="mt-0.5 shrink-0 animate-spin" size={19} /> : <History className="mt-0.5 shrink-0" size={19} />}
-        <p className="leading-6">{sourceText}</p>
-      </div>
+      {source !== 'api' && source !== 'loading' && (
+        <div className="mb-5 flex items-start gap-3 rounded-2xl border border-sky-100 bg-sky-50 p-4 text-sm text-sky-800">
+          <History className="mt-0.5 shrink-0" size={19} />
+          <p className="leading-6">{sourceText}</p>
+        </div>
+      )}
       <DataTable columns={columns} data={rows} searchPlaceholder={copy.search} actions={(row) => <button type="button" onClick={() => openDetail(row)} className="rounded-lg p-2 text-slate-400 hover:bg-leaf-50 hover:text-leaf-700" aria-label={copy.detail}><Eye size={17} /></button>} emptyTitle={copy.empty} emptyDescription={copy.emptyText} />
 
       <Modal open={Boolean(detail)} onClose={() => setDetail(null)} title={copy.detailTitle} description={detail?.date} size="sm">

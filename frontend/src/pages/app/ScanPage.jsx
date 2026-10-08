@@ -2,7 +2,7 @@ import { History, LogIn, ScanLine, ShieldCheck, Sparkles, Loader2 } from 'lucide
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { getApiError } from '../../api/client.js'
-import { explainPrediction, predictImage } from '../../api/predict.js'
+import { explainPrediction, getPredictCapabilities, predictImage } from '../../api/predict.js'
 import { farmsApi } from '../../api/farms.js'
 import ResultCard from '../../components/ResultCard.jsx'
 import UploadImage from '../../components/UploadImage.jsx'
@@ -14,6 +14,29 @@ import { loadCollection, saveCollection } from '../../utils/storage.js'
 import { compressImage, formatBytes } from '../../utils/imageCompressor.js'
 
 const HISTORY_KEY = 'plantcare_scan_history'
+const MODEL_META = {
+  efficientnet_b0: {
+    name: 'EfficientNet-B0',
+    badge: 'Khuyên dùng',
+    badgeEn: 'Recommended',
+    desc: 'Cân bằng & Chính xác',
+    descEn: 'Balanced & Accurate',
+  },
+  mobilenet_v2: {
+    name: 'MobileNet-V2',
+    badge: 'Nhanh',
+    badgeEn: 'Fast',
+    desc: 'Gọn nhẹ, tối ưu di động',
+    descEn: 'Lightweight & Optimized',
+  },
+  resnet50: {
+    name: 'ResNet-50',
+    badge: 'Chuyên sâu',
+    badgeEn: 'Deep',
+    desc: 'Độ trích xuất cao (Tech/Admin)',
+    descEn: 'High capacity (Tech/Admin)',
+  },
+}
 const DEMO_RESULT = {
   label: 'tomato_late_blight', confidence: 0.948, is_valid_leaf: true, ood_score: 0.08,
   treatment: 'Loại bỏ lá bị bệnh, giữ vườn thông thoáng và tham khảo kỹ thuật viên trước khi xử lý.',
@@ -34,7 +57,7 @@ function createHistoryRow(result, farmName) {
   const isHealthy = String(result.label || '').toLowerCase().includes('healthy')
   const isValidLeaf = result.is_valid_leaf ?? result.isValidLeaf ?? true
   return {
-    id: result.id || Date.now(),
+    id: result.scan_id || result.id || Date.now(),
     date: new Intl.DateTimeFormat('vi-VN', { dateStyle: 'short', timeStyle: 'short' }).format(new Date()),
     farm: farmName,
     result: isValidLeaf ? result.label : 'Ảnh ngoài miền dữ liệu',
@@ -63,23 +86,58 @@ export default function ScanPage({ guestMode = false }) {
   const [compressionRatio, setCompressionRatio] = useState(null)
   const [error, setError] = useState('')
   const [farmId, setFarmId] = useState('')
-  const [farms, setFarms] = useState(() => loadCollection('plantcare_farms', initialFarms))
+  const [farms, setFarms] = useState([])
+  const [selectedModel, setSelectedModel] = useState('efficientnet_b0')
+  const [availableModels, setAvailableModels] = useState(['efficientnet_b0'])
+
+  const isManager = user?.role === 'manager'
+  const isManagedUser = user?.role === 'user' && Boolean(user?.created_by)
+  const canAccessFarms = !guestMode && (isManager || isManagedUser)
 
   useEffect(() => {
+    if (guestMode || !canAccessFarms) {
+      setFarms([])
+    }
     let active = true
-    const fetchFarms = user?.role === 'manager' ? farmsApi.list : farmsApi.myFarms
-    fetchFarms()
-      .catch(() => farmsApi.list())
-      .then((data) => {
-        if (!active || !Array.isArray(data)) return
-        if (data.length > 0) {
-          setFarms(data)
-          saveCollection('plantcare_farms', data)
+
+    const promises = [getPredictCapabilities()]
+    if (canAccessFarms) {
+      const fetchFarms = isManager ? farmsApi.list : farmsApi.myFarms
+      promises.push(fetchFarms())
+    }
+
+    Promise.allSettled(promises)
+      .then(([capsResult, farmsResult]) => {
+        if (!active) return
+
+        if (capsResult?.status === 'fulfilled') {
+          const data = capsResult.value
+          if (Array.isArray(data?.allowed_model_types) && data.allowed_model_types.length > 0) {
+            setAvailableModels(data.allowed_model_types)
+            if (!data.allowed_model_types.includes(selectedModel)) {
+              setSelectedModel(data.allowed_model_types[0])
+            }
+          }
+        } else {
+          if (['technician', 'admin'].includes(user?.role)) {
+            setAvailableModels(['efficientnet_b0', 'mobilenet_v2', 'resnet50'])
+          } else {
+            setAvailableModels(['efficientnet_b0', 'mobilenet_v2'])
+          }
+        }
+
+        if (canAccessFarms && farmsResult?.status === 'fulfilled' && Array.isArray(farmsResult.value)) {
+          setFarms(farmsResult.value)
+          if (farmsResult.value.length > 0) {
+            saveCollection('plantcare_farms', farmsResult.value)
+          }
+        } else {
+          setFarms([])
         }
       })
-      .catch(() => {})
+
     return () => { active = false }
-  }, [user?.role])
+  }, [guestMode, user?.role, user?.created_by, canAccessFarms, isManager])
 
   useEffect(() => () => { if (previewUrl) URL.revokeObjectURL(previewUrl) }, [previewUrl])
 
@@ -134,8 +192,9 @@ export default function ScanPage({ guestMode = false }) {
     const farmName = guestMode ? t('landing.guestTitle') : farm?.name || t('scan.optional')
     const row = createHistoryRow(nextResult, farmName)
     if (!guestMode) {
-      const history = loadCollection(HISTORY_KEY, [])
-      saveCollection(HISTORY_KEY, [row, ...history].slice(0, 100))
+      const historyKey = user?.id ? `plantcare_scan_history_${user.id}` : 'plantcare_scan_history'
+      const history = loadCollection(historyKey, [])
+      saveCollection(historyKey, [row, ...history].slice(0, 100))
     }
     setResult(nextResult)
     if (nextResult.gradcam_url) setExplanation({ gradcam_url: nextResult.gradcam_url })
@@ -145,7 +204,14 @@ export default function ScanPage({ guestMode = false }) {
   async function analyze() {
     if (!file) { setValidationError(language === 'vi' ? 'Vui lòng chọn ảnh lá cây trước khi phân tích.' : 'Choose a leaf image before analyzing.'); return }
     setLoading(true); setError(''); setResult(null); setResultMeta(null)
-    try { showResult(await predictImage(file, { farmId })) }
+    const payload = {}
+    if (canAccessFarms && farmId) {
+      payload.farmId = farmId
+    }
+    if (!guestMode && selectedModel) {
+      payload.primaryModel = selectedModel
+    }
+    try { showResult(await predictImage(file, payload)) }
     catch (requestError) { setError(getApiError(requestError, language === 'vi' ? 'Không thể phân tích ảnh.' : 'Unable to analyze the image.')) }
     finally { setLoading(false) }
   }
@@ -166,9 +232,46 @@ export default function ScanPage({ guestMode = false }) {
           <div className="flex items-center gap-3"><History className="shrink-0 text-sky-600" size={20} /><span><strong>{t('guest.noHistory')}.</strong> {t('scan.guestDescription')}</span></div>
           <Link to="/login" className="btn-secondary shrink-0"><LogIn size={16} />{t('guest.saveHistory')}</Link>
         </div>
-      ) : (
+      ) : canAccessFarms ? (
         <div className="mb-6 grid gap-4 rounded-3xl border border-leaf-100 bg-leaf-50/60 p-4 dark:border-leaf-900 dark:bg-leaf-950/30 sm:grid-cols-[1fr_auto] sm:items-center sm:p-5">
-          <label><span className="mb-2 block text-xs font-bold uppercase tracking-wider text-leaf-700 dark:text-leaf-300">{t('scan.farm')}</span><select className="input-control max-w-md" value={farmId} onChange={(event) => setFarmId(event.target.value)}><option value="">{t('scan.optional')}</option>{farms.map((farm) => <option key={farm.id} value={farm.id}>{farm.name}</option>)}</select></label>
+          {farms.length > 0 ? (
+            <label>
+              <span className="mb-2 block text-xs font-bold uppercase tracking-wider text-leaf-700 dark:text-leaf-300">
+                {t('scan.farm')}
+              </span>
+              <select className="input-control max-w-md" value={farmId} onChange={(event) => setFarmId(event.target.value)}>
+                <option value="">{t('scan.optional')}</option>
+                {farms.map((farm) => (
+                  <option key={farm.id} value={farm.id}>{farm.name}</option>
+                ))}
+              </select>
+            </label>
+          ) : (
+            <div>
+              <span className="mb-1 block text-xs font-bold uppercase tracking-wider text-leaf-700 dark:text-leaf-300">
+                {t('scan.farm')}
+              </span>
+              <p className="text-xs text-slate-500">
+                {isManager
+                  ? (language === 'vi' ? 'Bạn chưa tạo khu vực nào trong Quản lý trang trại.' : 'No areas created yet in Farm Management.')
+                  : (language === 'vi' ? 'Chưa được phân công khu vực (liên hệ Quản lý để được gán vào trang trại).' : 'Not assigned to any area yet (contact your manager).')}
+              </p>
+            </div>
+          )}
+          <div className="flex items-center gap-2 text-xs text-leaf-800 dark:text-leaf-200"><ShieldCheck size={17} /><span>{t('scan.privacy')}</span></div>
+        </div>
+      ) : (
+        <div className="mb-6 flex items-center justify-between rounded-3xl border border-leaf-100 bg-leaf-50/60 p-4 dark:border-leaf-900 dark:bg-leaf-950/30 sm:p-5">
+          <div className="flex items-center gap-3">
+            <span className="grid h-8 w-8 place-items-center rounded-xl bg-leaf-100 text-leaf-700 dark:bg-leaf-900 dark:text-leaf-300 font-bold text-xs">
+              🍃
+            </span>
+            <span className="text-xs text-slate-600 dark:text-slate-300">
+              {language === 'vi'
+                ? 'Chế độ chẩn đoán cá nhân (Kết quả chẩn đoán được lưu vào hồ sơ cá nhân của bạn).'
+                : 'Personal diagnosis mode (Results are saved to your personal history).'}
+            </span>
+          </div>
           <div className="flex items-center gap-2 text-xs text-leaf-800 dark:text-leaf-200"><ShieldCheck size={17} /><span>{t('scan.privacy')}</span></div>
         </div>
       )}
@@ -184,6 +287,58 @@ export default function ScanPage({ guestMode = false }) {
                   ? `Đã tối ưu hóa ảnh: ${compressionRatio.original} → ${compressionRatio.compressed} (giảm ${compressionRatio.savedPercent}%, tải lên nhanh hơn)`
                   : `Image optimized: ${compressionRatio.original} → ${compressionRatio.compressed} (saved ${compressionRatio.savedPercent}%, faster upload)`}
               </span>
+            </div>
+          )}
+
+          {!guestMode && (
+            <div className="mt-4 rounded-3xl border border-leaf-100 bg-white/85 p-4 shadow-sm dark:border-leaf-900/60 dark:bg-slate-900/80">
+              <div className="mb-2.5 flex items-center justify-between">
+                <label className="text-xs font-bold uppercase tracking-wider text-leaf-700 dark:text-leaf-300">
+                  {language === 'vi' ? 'Mô hình chẩn đoán chính' : 'Primary Diagnostic Model'}
+                </label>
+                <span className="text-[11px] font-medium text-leaf-600 dark:text-leaf-400">
+                  {language === 'vi' ? 'Kiểm định 2 tầng' : 'Two-tier ensemble'}
+                </span>
+              </div>
+              <div className="grid gap-2.5 sm:grid-cols-2 lg:grid-cols-3">
+                {availableModels.map((mType) => {
+                  const meta = MODEL_META[mType] || { name: mType, badge: '', desc: '' }
+                  const isSelected = selectedModel === mType
+                  return (
+                    <button
+                      key={mType}
+                      type="button"
+                      onClick={() => setSelectedModel(mType)}
+                      className={`flex flex-col items-start rounded-2xl border p-3 text-left transition-all ${
+                        isSelected
+                          ? 'border-leaf-500 bg-leaf-50/90 shadow-sm ring-2 ring-leaf-500/30 dark:border-leaf-500 dark:bg-leaf-950/50'
+                          : 'border-slate-200 bg-slate-50/70 hover:border-slate-300 dark:border-slate-800 dark:bg-slate-800/40'
+                      }`}
+                    >
+                      <div className="flex w-full items-center justify-between gap-1">
+                        <span className={`text-xs font-bold ${isSelected ? 'text-leaf-800 dark:text-leaf-200' : 'text-slate-700 dark:text-slate-300'}`}>
+                          {meta.name}
+                        </span>
+                        {meta.badge && (
+                          <span className={`shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-semibold ${
+                            isSelected ? 'bg-leaf-200/80 text-leaf-800 dark:bg-leaf-900 dark:text-leaf-200' : 'bg-slate-200/70 text-slate-600 dark:bg-slate-700 dark:text-slate-300'
+                          }`}>
+                            {language === 'vi' ? meta.badge : meta.badgeEn}
+                          </span>
+                        )}
+                      </div>
+                      <span className="mt-1 text-[11px] leading-tight text-slate-500 dark:text-slate-400">
+                        {language === 'vi' ? meta.desc : meta.descEn}
+                      </span>
+                    </button>
+                  )
+                })}
+              </div>
+              <p className="mt-2 text-[11px] text-slate-400 dark:text-slate-500">
+                {language === 'vi'
+                  ? 'Mô hình đã chọn chạy ở Tầng 1 và được kiểm tra chéo ở Tầng 2 với các mô hình phụ trợ.'
+                  : 'Selected model runs at Stage 1 and is cross-verified at Stage 2 with auxiliary models.'}
+              </p>
             </div>
           )}
 

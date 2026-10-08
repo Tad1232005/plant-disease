@@ -17,8 +17,8 @@ Nguồn thật: `backend/app/api/v1/endpoints/`. Swagger: `http://127.0.0.1:8000
 
 | Method | Path | Quyền | Ghi chú |
 |---|---|---|---|
-| GET | `/predict/capabilities` | optional | Mode/strategy role được dùng |
-| POST | `/predict` | optional | `file` + `mode` (auto/basic/standard/advanced) + `strategy` (ensemble/single) + `model_type` + `farm_id`. Guest không gửi `farm_id`, không lưu Scan |
+| GET | `/predict/capabilities` | optional | Mode, tier và danh sách model role được phép chọn (`allowed_model_types`) |
+| POST | `/predict` | optional | `file` + `primary_model?` + `farm_id?`.<br>• **Guest**: Dừng ở Tầng 1 (EffNet-B0), MSP < 0.933487 => `is_valid_leaf=false` ("Không phải lá"), không lưu Scan.<br>• **Role đăng nhập**: Chọn model làm Primary (Tầng 1), bắt buộc chạy qua Tầng 2 để ensemble/cross-check, lưu Scan. FE ẩn chọn single/ensemble. |
 
 ## Scans — `scans.py` (prefix `/scans`)
 

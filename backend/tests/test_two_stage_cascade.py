@@ -65,8 +65,8 @@ def fake_result_with_probs(spec, order: int, probs: list[float]):
     }
 
 
-def test_stage_1_high_confidence_exits_early_without_running_stage_2(monkeypatch):
-    """Khi Primary model rất tự tin (>= high_conf_msp), trả về ngay ở Tầng 1."""
+def test_authenticated_role_stage_1_high_conf_skips_stage_2(monkeypatch):
+    """Khi Tầng 1 ổn (MSP >= 0.985229 & margin >= 0.05), cho qua ngay (Early Exit), không chạy Tầng 2."""
     service = PredictService()
     monkeypatch.setattr(settings, "PARALLEL_MODEL_INFERENCE", False)
 
@@ -74,7 +74,6 @@ def test_stage_1_high_confidence_exits_early_without_running_stage_2(monkeypatch
 
     def tracking_predict(_tensor, spec, order):
         executed_orders.append(order)
-        # 0.99 > high_conf_msp (0.9852)
         return fake_result_with_probs(spec, order, [0.99, 0.008, 0.002])
 
     monkeypatch.setattr(service, "_safe_predict_one", tracking_predict)
@@ -88,12 +87,12 @@ def test_stage_1_high_confidence_exits_early_without_running_stage_2(monkeypatch
     assert result["models_succeeded"] == 1
     assert result["decision_details"]["stage_reached"] == 1
     assert result["decision_details"]["ood_method"] == "high_confidence"
-    # Chỉ duy nhất order 1 (Primary model) được chạy
+    # Chỉ model 1 (Tầng 1) được chạy, Tầng 2 được skip
     assert executed_orders == [1]
 
 
-def test_stage_1_low_confidence_rejects_without_running_stage_2(monkeypatch):
-    """Khi Primary model quá phân vân (< low_conf_msp), từ chối ngay ở Tầng 1."""
+def test_authenticated_role_stage_1_low_conf_rejects_without_stage_2(monkeypatch):
+    """Khi Tầng 1 chắc chắn không phải lá (MSP < 0.508453), loại ngay, không chạy Tầng 2."""
     service = PredictService()
     monkeypatch.setattr(settings, "PARALLEL_MODEL_INFERENCE", False)
 
@@ -101,8 +100,8 @@ def test_stage_1_low_confidence_rejects_without_running_stage_2(monkeypatch):
 
     def tracking_predict(_tensor, spec, order):
         executed_orders.append(order)
-        # 0.4 < low_conf_msp (0.508)
-        return fake_result_with_probs(spec, order, [0.4, 0.35, 0.25])
+        # MSP = 0.45 < low_conf_msp (~0.5085)
+        return fake_result_with_probs(spec, order, [0.45, 0.35, 0.20])
 
     monkeypatch.setattr(service, "_safe_predict_one", tracking_predict)
 
@@ -113,14 +112,14 @@ def test_stage_1_low_confidence_rejects_without_running_stage_2(monkeypatch):
     assert result["is_valid_leaf"] is False
     assert result["label"] is None
     assert result["rejection_reason"] == "confidence_below_threshold"
-    assert result["models_succeeded"] == 1
     assert result["decision_details"]["stage_reached"] == 1
     assert result["decision_details"]["ood_method"] == "low_confidence"
+    # Dừng ngay tại Tầng 1, không qua Tầng 2
     assert executed_orders == [1]
 
 
-def test_stage_2_triggers_when_primary_is_in_uncertain_zone(monkeypatch):
-    """Khi Primary model rơi vào vùng lửng (0.508 <= msp < 0.985), Tầng 2 kích hoạt."""
+def test_authenticated_role_stage_1_uncertain_escalates_to_stage_2(monkeypatch):
+    """Khi Tầng 1 phân vân (0.508453 <= MSP < 0.985229), kích hoạt Tầng 2 để ensemble."""
     service = PredictService()
     monkeypatch.setattr(settings, "PARALLEL_MODEL_INFERENCE", False)
 
@@ -128,8 +127,8 @@ def test_stage_2_triggers_when_primary_is_in_uncertain_zone(monkeypatch):
 
     def tracking_predict(_tensor, spec, order):
         executed_orders.append(order)
-        # 0.85 nằm trong vùng lửng (0.508 - 0.985)
-        return fake_result_with_probs(spec, order, [0.85, 0.1, 0.05])
+        # MSP = 0.80 nằm trong vùng lửng
+        return fake_result_with_probs(spec, order, [0.80, 0.15, 0.05])
 
     monkeypatch.setattr(service, "_safe_predict_one", tracking_predict)
 
@@ -137,12 +136,68 @@ def test_stage_2_triggers_when_primary_is_in_uncertain_zone(monkeypatch):
     result = service.predict(image_bytes(), specs, "advanced")
 
     assert result["validation_status"] == "accepted"
+    assert result["is_valid_leaf"] is True
     assert result["models_requested"] == 3
     assert result["models_succeeded"] == 3
     assert result["decision_details"]["stage_reached"] == 2
     assert result["decision_details"]["ood_method"] == "ensemble"
-    # Cả 3 model đều được chạy
+    # Cả 3 model đều được chạy vì có escalation lên Tầng 2
     assert executed_orders == [1, 2, 3]
+
+
+def test_guest_mode_stops_at_stage_1_rejects_below_msp_threshold(monkeypatch):
+    """Guest dừng ở Tầng 1: nếu confidence < msp_threshold (~0.933) thì báo không phải lá."""
+    service = PredictService()
+    monkeypatch.setattr(settings, "PARALLEL_MODEL_INFERENCE", False)
+
+    executed_orders = []
+
+    def tracking_predict(_tensor, spec, order):
+        executed_orders.append(order)
+        # 0.85 < msp_threshold (0.933487)
+        return fake_result_with_probs(spec, order, [0.85, 0.1, 0.05])
+
+    monkeypatch.setattr(service, "_safe_predict_one", tracking_predict)
+
+    specs = dummy_specs(1)
+    result = service.predict(image_bytes(), specs, "basic")
+
+    assert result["validation_status"] == "low_confidence"
+    assert result["is_valid_leaf"] is False
+    assert result["label"] is None
+    assert result["rejection_reason"] == "confidence_below_threshold"
+    assert result["models_requested"] == 1
+    assert result["models_succeeded"] == 1
+    assert result["decision_details"]["stage_reached"] == 1
+    assert result["decision_details"]["ood_method"] == "msp"
+    assert executed_orders == [1]
+
+
+def test_guest_mode_stops_at_stage_1_accepts_above_msp_threshold(monkeypatch):
+    """Guest dừng ở Tầng 1: nếu confidence >= msp_threshold (~0.933) và đủ margin thì chấp nhận."""
+    service = PredictService()
+    monkeypatch.setattr(settings, "PARALLEL_MODEL_INFERENCE", False)
+
+    executed_orders = []
+
+    def tracking_predict(_tensor, spec, order):
+        executed_orders.append(order)
+        # 0.95 >= msp_threshold (0.933487)
+        return fake_result_with_probs(spec, order, [0.95, 0.03, 0.02])
+
+    monkeypatch.setattr(service, "_safe_predict_one", tracking_predict)
+
+    specs = dummy_specs(1)
+    result = service.predict(image_bytes(), specs, "basic")
+
+    assert result["validation_status"] == "accepted"
+    assert result["is_valid_leaf"] is True
+    assert result["label"] == "class-0"
+    assert result["models_requested"] == 1
+    assert result["models_succeeded"] == 1
+    assert result["decision_details"]["stage_reached"] == 1
+    assert result["decision_details"]["ood_method"] == "msp"
+    assert executed_orders == [1]
 
 
 def test_primary_model_selection_order_in_db(db_session, active_model_versions):

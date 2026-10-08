@@ -1,4 +1,5 @@
 import { zodResolver } from '@hookform/resolvers/zod'
+import { AlertCircle } from 'lucide-react'
 import { useEffect, useMemo } from 'react'
 import { useForm } from 'react-hook-form'
 import { z } from 'zod'
@@ -15,15 +16,24 @@ function createSchema(fields, language) {
     }
 
     let rule = z.string()
-    if (field.required !== false) rule = rule.trim().min(1, language === 'vi' ? `Vui lòng nhập ${field.label.toLowerCase()}` : `Enter ${field.label.toLowerCase()}`)
-    if (field.minLength) rule = rule.min(field.minLength, language === 'vi' ? `${field.label} cần ít nhất ${field.minLength} ký tự` : `${field.label} must have at least ${field.minLength} characters`)
-    if (field.type === 'email') rule = rule.email(language === 'vi' ? 'Email chưa đúng định dạng' : 'Enter a valid email address')
+    if (field.required === false) {
+      if (field.type === 'email') {
+        rule = z.string().trim().email(language === 'vi' ? 'Email chưa đúng định dạng' : 'Enter a valid email address').or(z.literal(''))
+      } else {
+        rule = z.string().optional().or(z.literal(''))
+      }
+    } else {
+      rule = rule.trim().min(1, language === 'vi' ? `Vui lòng nhập ${field.label.toLowerCase()}` : `Enter ${field.label.toLowerCase()}`)
+      if (field.minLength) rule = rule.min(field.minLength, language === 'vi' ? `${field.label} cần ít nhất ${field.minLength} ký tự` : `${field.label} must have at least ${field.minLength} characters`)
+      if (field.type === 'email') rule = rule.email(language === 'vi' ? 'Email chưa đúng định dạng' : 'Enter a valid email address')
+      if (field.pattern) rule = rule.regex(field.pattern.regex, field.pattern.message)
+    }
     shape[field.name] = rule
   })
   return z.object(shape)
 }
 
-export default function CrudForm({ fields, defaultValues = {}, onSubmit, onCancel, submitLabel, loading = false }) {
+export default function CrudForm({ fields, defaultValues = {}, onSubmit, onCancel, submitLabel, loading = false, error = null }) {
   const { language, t } = usePreferences()
   const resolvedSubmitLabel = submitLabel || t('common.save')
   const schema = useMemo(() => createSchema(fields, language), [fields, language])
@@ -40,6 +50,12 @@ export default function CrudForm({ fields, defaultValues = {}, onSubmit, onCance
 
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-5" noValidate>
+      {error && (
+        <div className="flex items-start gap-2.5 rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm font-medium text-rose-800">
+          <AlertCircle size={18} className="mt-0.5 shrink-0 text-rose-600" />
+          <div className="flex-1 leading-relaxed">{error}</div>
+        </div>
+      )}
       <div className="grid gap-5 sm:grid-cols-2">
         {fields.map((field) => (
           <label key={field.name} className={field.fullWidth ? 'sm:col-span-2' : ''}>
