@@ -249,6 +249,7 @@ def test_admin_scans_separate_namespace_and_audit(client, db_session, normal_use
 
 @pytest.mark.parametrize("url", ["/api/v1/admin/users", "/api/v1/manager/users",
                                   "/api/v1/admin/scans", "/api/v1/admin/disease-proposals",
+                                  "/api/v1/admin/audit-events",
                                   "/api/v1/stats/admin/recent-invalid"])
 def test_new_lists_pagination_bounds(client, admin_headers, manager_headers, url):
     headers = manager_headers if "/manager/" in url else admin_headers
@@ -344,7 +345,7 @@ def test_new_database_constraints(db_session, normal_user, content, statement):
 
 
 def test_concurrent_approve_same_proposal_is_idempotent(client, db_session, content,
-                                                      technician_headers, admin_user):
+                                                           technician_headers, admin_user):
     proposal_id = client.post("/api/v1/disease-proposals", headers=technician_headers,
                               json=proposal_payload(content)).json()["id"]
     engine = db_session.get_bind()
@@ -360,3 +361,21 @@ def test_concurrent_approve_same_proposal_is_idempotent(client, db_session, cont
     db_session.refresh(content)
     assert content.content_version == 2
     assert db_session.query(AuditEvent).filter_by(action="proposal.approved").count() == 1
+
+
+def test_admin_audit_events_lists_with_actor_name(client, db_session, admin_user, admin_headers,
+                                                 user_headers):
+    from app.services.audit_service import record_event
+    record_event(db_session, actor_id=admin_user.id, action="user.status_changed",
+                 resource_type="user", resource_id=admin_user.id,
+                 details={"from": "active", "to": "suspended", "reason": "review"})
+    record_event(db_session, actor_id=None, action="system.snapshot_created",
+                 resource_type="system", resource_id=1, details={})
+    db_session.commit()
+    assert client.get("/api/v1/admin/audit-events", headers=user_headers).status_code == 403
+    body = client.get("/api/v1/admin/audit-events", headers=admin_headers).json()
+    assert [item["action"] for item in body] == ["system.snapshot_created", "user.status_changed"]
+    assert body[1]["actor_name"] == admin_user.username
+    assert body[0]["actor_name"] == "system"
+    assert client.get("/api/v1/admin/audit-events",
+                       headers=admin_headers, params={"action": "nope"}).json() == []

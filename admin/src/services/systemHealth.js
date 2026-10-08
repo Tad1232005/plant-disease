@@ -29,4 +29,7 @@ export const systemHealthApi = {
   /** GET /admin/model-versions?is_active=true — các version đang chạy Production. */
   activeModelVersions: async () =>
     (await apiClient.get('/admin/model-versions', { params: { is_active: true }, timeout: 8000 })).data,
+  /** GET /stats/admin/recent-invalid — ảnh OOD/không hợp lệ mới nhất (chuông báo). */
+  recentInvalid: async (limit = 5) =>
+    (await apiClient.get('/stats/admin/recent-invalid', { params: { limit }, timeout: 8000 })).data,
 }

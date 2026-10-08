@@ -28,3 +28,14 @@
 - Grad-CAM + top-3: Kỹ thuật viên.
 - Dashboard theo farm: Quản lý. Thống kê toàn hệ thống + quản trị: Admin.
 - Cảnh báo ảnh không hợp lệ / không phải lá (`is_valid_leaf=false`): Áp dụng cho cả Khách (Guest) ngay tại Tầng 1 và mọi role đã đăng nhập (sau khi qua 2 tầng).
+
+## Kế hoạch siết phân quyền (chưa code — đối chiếu Oct 2026)
+
+Lỗ hổng hiện tại:
+- `GET /farms` chỉ `manager` → trang Farms của admin chết (403).
+- `GET /scans/history` chỉ trả scan của chính user → manager không xem được lịch sử quét của farmer do mình tạo (mới chỉ thấy số gộp qua `/stats/farm/{id}`).
+
+Hướng sửa đã chốt (BE, không đụng FE):
+1. `GET /farms` + `GET /farms/{id}` (+ xem members) mở thêm cho `admin`: admin thấy tất cả (thêm query `?owner_id=`), manager giữ farm mình. Thao tác ghi vẫn manager-only.
+2. `GET /scans/history?user_id=`: xem hộ chỉ khi là manager và user đó do mình tạo (`created_by`), không thì 403. Admin đã có `/admin/scans?user_id=`.
+3. Kèm test: admin list all farms; manager xem history của managed user; user lạ 403.
