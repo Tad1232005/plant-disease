@@ -1,9 +1,15 @@
 import { apiClient } from './client.js'
 
-export async function predictImage(file, { farmId } = {}) {
+export async function getPredictCapabilities() {
+  const response = await apiClient.get('/predict/capabilities')
+  return response.data
+}
+
+export async function predictImage(file, { farmId, primaryModel } = {}) {
   const formData = new FormData()
   formData.append('file', file)
   if (farmId) formData.append('farm_id', farmId)
+  if (primaryModel) formData.append('primary_model', primaryModel)
 
   const response = await apiClient.post('/predict', formData, {
     headers: { 'Content-Type': 'multipart/form-data' },

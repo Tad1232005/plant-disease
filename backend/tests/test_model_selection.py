@@ -95,9 +95,9 @@ def test_basic_advanced_accept_standard_reject_is_not_boolean_bug(monkeypatch):
     monkeypatch.setattr(settings, "PARALLEL_MODEL_INFERENCE", False)
     monkeypatch.setattr(settings, "CONFIDENCE_THRESHOLD", .3)
     monkeypatch.setattr(settings, "TOP1_MARGIN_THRESHOLD", .05)
-    monkeypatch.setattr(settings, "JS_DIVERGENCE_THRESHOLD", .3)
+    monkeypatch.setattr(settings, "JS_DIVERGENCE_THRESHOLD", .6)
     def prediction(_tensor, spec, order):
-        probs = [.25, .7, .05] if spec.model_type == "mobilenet_v2" else [.7, .25, .05]
+        probs = [.05, .94, .01] if spec.model_type == "mobilenet_v2" else [.94, .05, .01]
         return fake_result(spec, order, probs)
     monkeypatch.setattr(service, "_safe_predict_one", prediction)
     basic = service.predict(image_bytes(), specs(1), "basic")

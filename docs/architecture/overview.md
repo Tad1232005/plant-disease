@@ -18,21 +18,29 @@ CORS backend cho phép `localhost:5173` và `5174`.
 
 ```
 Người dùng (FE :5173 / Admin :5174)
-  │  POST /api/v1/predict (multipart: file, mode, strategy, model_type, farm_id?)
+  │  POST /api/v1/predict (multipart: file, primary_model?, farm_id?)
   ▼
 Backend (:8000)
   ├─ validate_upload (MIME thật, dung lượng ≤ 10MB, pixel giới hạn)
   ├─ resolve_mode(role) → basic (guest) / standard (user, manager) / advanced (technician, admin)
-  ├─ get_active_models(DB ModelVersion) → bundle trong app/ml_assets/models/
-  ├─ predict_service.predict_bounded (cache model + temperature, soft-vote calibrated probs)
-  │    checks: confidence ≥ 0.3, margin ≥ 0.05, JS divergence ≤ ngưỡng tier
+  │
+  ├─ [Nhánh Guest]:
+  │    └─ Dừng ở Tầng 1 (EfficientNet-B0): kiểm tra MSP calibrated ≥ 0.933487 và margin ≥ 0.05.
+  │       Nếu không đạt ngưỡng %: is_valid_leaf = false, hiển thị "Không phải lá".
+  │
+  ├─ [Nhánh Role đã đăng nhập]:
+  │    ├─ Nhận model do user chọn làm Primary Model (FE chỉ hiện chọn model, không chọn single/ensemble).
+  │    └─ Bắt buộc chạy đủ 2 Tầng (Tầng 1: Primary Model + Tầng 2: các model phụ trợ trong tier).
+  │       Tổng hợp soft-vote mean probs, kiểm tra checks: confidence ≥ 0.3, margin ≥ 0.05, JS ≤ ngưỡng tier.
+  │
   └─ complete_prediction → lưu Scan/ScanTopK/ScanModelResult (nếu đã đăng nhập)
-  │  label + confidence + top_k + validation_status (accepted/low_confidence/ambiguous)
+     label + confidence + top_k + validation_status (accepted/low_confidence/ambiguous)
   ▼
-FE hiển thị kết quả, lịch sử, Grad-CAM (POST/GET /scans/{id}/gradcam)
+FE hiển thị kết quả chẩn đoán, cảnh báo "Không phải lá" (nếu fail), lịch sử, Grad-CAM.
 ```
 
-- Guest: không gửi `farm_id`, không lưu Scan.
+- Guest: không chọn model, không gửi `farm_id`, không lưu Scan, dừng ở Tầng 1.
+- Role đăng nhập: chọn model khả dụng theo role, bắt buộc chạy qua 2 tầng, lưu lịch sử Scan.
 - Auth: JWT access 15p + refresh 7 ngày (HttpOnly cookie); thu hồi bằng `token_version`.
 - Chi tiết flow ML: `ml/docs/FLOW.md`. Contract OOD: `api/ood-contract.md`.
 

@@ -57,16 +57,6 @@ export function AuthProvider({ children }) {
   }, [])
 
   async function login(credentials) {
-    const demoUser = Object.values(demoUsers).find(
-      (item) => item.username === credentials.username && item.password === credentials.password,
-    )
-
-    if (demoUser) {
-      const { password: _, ...safeUser } = demoUser
-      saveSession(safeUser, DEMO_TOKEN)
-      return safeUser
-    }
-
     try {
       const tokenData = await authApi.login(credentials)
       localStorage.setItem(TOKEN_KEY, tokenData.access_token)
@@ -81,6 +71,14 @@ export function AuthProvider({ children }) {
       return profile
     } catch (error) {
       if (error.code === 'ADMIN_ACCOUNT') throw error
+      const demoUser = Object.values(demoUsers).find(
+        (item) => item.username === credentials.username && item.password === credentials.password,
+      )
+      if (demoUser) {
+        const { password: _, ...safeUser } = demoUser
+        saveSession(safeUser, DEMO_TOKEN)
+        return safeUser
+      }
       throw new Error(getApiError(error, 'Tên đăng nhập hoặc mật khẩu không đúng.'))
     }
   }

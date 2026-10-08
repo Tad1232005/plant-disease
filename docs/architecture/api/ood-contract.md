@@ -38,6 +38,20 @@ Giữ `.env` = `0.035`. Lịch sử: `.env` từng `0.3` khiến hệ thống ch
 
 ## Rule quyết định ở BE (`predict`)
 
-`confidence ≥ 0.3` và `margin ≥ 0.05` và `js_divergence ≤ ngưỡng tier`,
-fail confidence → `low_confidence`, fail còn lại → `ambiguous`.
-`ood_score = 0.4·(1−conf) + 0.3·entropy + 0.3·js` chỉ để log/xếp hạng.
+### 1. Phân nhánh Guest (Chỉ chạy Tầng 1 — `basic`):
+- **Model**: `efficientnet_b0` duy nhất.
+- **Ngưỡng kiểm tra**: Calibrated MSP `≥ 0.933487` (ngưỡng MSP calibrate q=95 ID trong `ood_threshold.json`) và `margin ≥ 0.05`.
+- **Kết quả**:
+  - Đạt cả 2: `is_valid_leaf = true`, `validation_status = "accepted"`, trả về nhãn bệnh.
+  - Không đạt: `is_valid_leaf = false`, `label = null`, `validation_status = "low_confidence"` (hoặc OOD) → FE hiển thị cảnh báo **"Không phải lá"**.
+
+### 2. Phân nhánh Role Đã Đăng Nhập (Bắt buộc chạy đủ 2 Tầng):
+- **Tầng 1 (Primary)**: Model do người dùng chọn (mặc định EffNet-B0 nếu không chọn).
+- **Tầng 2 (Auxiliary)**: Các model còn lại của Tier (Standard: 1 model phụ; Advanced: 2 model phụ). Không cho phép ngắt sớm ở Tầng 1.
+- **Tổng hợp 2 Tầng**: Soft-voting mean probabilities giữa các model, tính Jensen-Shannon Divergence.
+- **Kiểm định**:
+  - `confidence ≥ 0.3` (soft-vote ensemble)
+  - `top1_top2_margin ≥ 0.05`
+  - `js_divergence ≤ ngưỡng tier` (Standard: `~0.031`, Advanced: `~0.032`)
+- Fail confidence → `low_confidence`, fail margin/js → `ambiguous`.
+- `ood_score = 0.4·(1−conf) + 0.3·entropy + 0.3·js` ghi nhận phục vụ audit/xếp hạng.

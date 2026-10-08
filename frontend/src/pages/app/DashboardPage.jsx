@@ -10,6 +10,13 @@ import { scansApi } from '../../api/scans.js'
 import { farmsApi } from '../../api/farms.js'
 import { loadCollection } from '../../utils/storage.js'
 
+function friendlyLabel(label = '') {
+  return String(label)
+    .replaceAll('___', ' - ')
+    .replaceAll('_', ' ')
+    .replace(/\b\w/g, (letter) => letter.toUpperCase())
+}
+
 const roleContent = {
   vi: { user: {
     eyebrow: 'Không gian nông dân',
@@ -151,7 +158,7 @@ export default function DashboardPage() {
         <div className="divide-y divide-slate-100">
           {realScans.slice(0, 3).map((item) => (
             <div key={item.id} className="flex flex-col justify-between gap-3 px-5 py-4 transition hover:bg-slate-50 sm:flex-row sm:items-center sm:px-6">
-              <div className="flex items-center gap-3"><span className="grid h-10 w-10 place-items-center rounded-xl bg-leaf-50 text-leaf-700"><Leaf size={18} /></span><div><p className="text-sm font-bold text-slate-800">{item.result}</p><p className="mt-0.5 text-xs text-slate-400">{item.farm}</p></div></div>
+              <div className="flex items-center gap-3"><span className="grid h-10 w-10 place-items-center rounded-xl bg-leaf-50 text-leaf-700"><Leaf size={18} /></span><div><p className="text-sm font-bold text-slate-800">{friendlyLabel(item.result)}</p><p className="mt-0.5 text-xs text-slate-400">{item.farm}</p></div></div>
               <div className="flex items-center justify-between gap-5 sm:justify-end"><StatusBadge value={item.severity} /><span className="text-sm font-extrabold text-slate-700">{item.confidence}%</span><span className="inline-flex items-center gap-1 text-xs text-slate-400"><Clock3 size={13} />{item.date.split(' ')[0]}</span></div>
             </div>
           ))}

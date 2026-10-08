@@ -429,27 +429,10 @@ class PredictService:
         msp_threshold = float(signals.get("msp", {}).get("threshold", 0.9334873557090759))
         js_threshold = self.get_js_divergence_threshold(mode, len(ordered_specs))
 
-        run_stage_2 = False
-        stage_1_early_exit = False
-        stage_1_rejected = False
-
-        if len(ordered_specs) > 1 and primary_res["error_code"] is None:
-            # Calibrated MSP của primary model ở Tầng 1
-            msp = float(primary_res["confidence"])
-            margin = float(primary_res["top1_top2_margin"] or 0.0)
-
-            if msp >= high_conf_msp and margin >= settings.TOP1_MARGIN_THRESHOLD:
-                # Tầng 1: Model rất tự tin -> chốt luôn kết quả, không chạy Tầng 2
-                stage_1_early_exit = True
-            elif msp < low_conf_msp:
-                # Tầng 1: Quá phân vân -> loại luôn
-                stage_1_rejected = True
-            else:
-                # Rơi vào vùng phân vân (low <= msp < high) -> kích hoạt Tầng 2
-                run_stage_2 = True
-        elif len(ordered_specs) > 1 and primary_res["error_code"] is not None:
-            # Primary model bị lỗi -> kích hoạt các model phụ (degraded)
-            run_stage_2 = True
+        # Đối với các role đã đăng nhập có nhiều hơn 1 model (Standard / Advanced):
+        # Bắt buộc phải ra cả 2 tầng rồi mới trả ra kết quả.
+        # Với Guest (chế độ basic hoặc chỉ 1 model): dừng ở Tầng 1.
+        run_stage_2 = len(ordered_specs) > 1
 
         if run_stage_2:
             aux_specs = ordered_specs[1:]
@@ -477,7 +460,7 @@ class PredictService:
         if not successful:
             raise ModelConfigurationError("Tất cả model đều inference thất bại")
 
-        # Xử lý khi chỉ dừng ở Tầng 1 (hoặc Single model, hoặc Tầng 1 early-exit/reject)
+        # Xử lý khi chỉ dừng ở Tầng 1 (Guest mode hoặc single model)
         if not run_stage_2:
             primary = successful[0]
             confidence = float(primary["confidence"])
@@ -487,41 +470,20 @@ class PredictService:
             energy_score = float(primary["energy_score"])
             ood_score = min(1.0, 0.4 * (1.0 - confidence) + 0.3 * entropy)
 
-            if stage_1_early_exit:
-                validation_status = "accepted"
-                rejection_reason = None
-                ood_method = "high_confidence"
-                checks = [
-                    {"rule": "confidence_below_threshold", "value": confidence,
-                     "threshold": high_conf_msp, "comparison": ">=", "passed": True},
-                    {"rule": "top1_top2_margin_too_small", "value": margin,
-                     "threshold": settings.TOP1_MARGIN_THRESHOLD, "comparison": ">=", "passed": True},
-                ]
-                failed_rules: list[str] = []
-            elif stage_1_rejected:
-                validation_status = "low_confidence"
-                rejection_reason = "confidence_below_threshold"
-                ood_method = "low_confidence"
-                checks = [
-                    {"rule": "confidence_below_threshold", "value": confidence,
-                     "threshold": low_conf_msp, "comparison": ">=", "passed": False},
-                ]
-                failed_rules = ["confidence_below_threshold"]
-            else:
-                # len(ordered_specs) == 1 (chế độ single hoặc mode basic)
-                min_conf = settings.CONFIDENCE_THRESHOLD
-                checks = [
-                    {"rule": "confidence_below_threshold", "value": confidence,
-                     "threshold": min_conf, "comparison": ">=",
-                     "passed": confidence >= min_conf},
-                    {"rule": "top1_top2_margin_too_small", "value": margin,
-                     "threshold": settings.TOP1_MARGIN_THRESHOLD, "comparison": ">=",
-                     "passed": margin >= settings.TOP1_MARGIN_THRESHOLD},
-                ]
-                failed_rules = [check["rule"] for check in checks if not check["passed"]]
-                rejection_reason = failed_rules[0] if failed_rules else None
-                validation_status = "accepted" if not failed_rules else "low_confidence"
-                ood_method = "single_model"
+            # Với Guest (tier basic): Kiểm tra tỉ lệ % đề ra theo ngưỡng calibrated MSP (~0.933487)
+            min_conf = msp_threshold if mode == "basic" else settings.CONFIDENCE_THRESHOLD
+            checks = [
+                {"rule": "confidence_below_threshold", "value": confidence,
+                 "threshold": min_conf, "comparison": ">=",
+                 "passed": confidence >= min_conf},
+                {"rule": "top1_top2_margin_too_small", "value": margin,
+                 "threshold": settings.TOP1_MARGIN_THRESHOLD, "comparison": ">=",
+                 "passed": margin >= settings.TOP1_MARGIN_THRESHOLD},
+            ]
+            failed_rules = [check["rule"] for check in checks if not check["passed"]]
+            rejection_reason = failed_rules[0] if failed_rules else None
+            validation_status = "accepted" if not failed_rules else "low_confidence"
+            ood_method = "msp" if mode == "basic" else "single_model"
 
             public_results = [
                 {key: value for key, value in item.items() if key not in {"all_probs", "classes"}}
@@ -531,8 +493,11 @@ class PredictService:
                 "label": candidate_label if validation_status == "accepted" else None,
                 "candidate_label": candidate_label,
                 "confidence": round(confidence, 6),
+                "primary_confidence": round(confidence, 6),
+                "ensemble_confidence": round(confidence, 6),
                 "is_valid_leaf": validation_status == "accepted",
                 "top_k": primary["top_k"],
+                "ensemble_top_k": primary["top_k"],
                 "model_version": primary["version_name"],
                 "primary_model_version_id": primary["model_version_id"],
                 "inference_mode": mode,
@@ -553,6 +518,7 @@ class PredictService:
                     "ood_method": ood_method,
                     "primary_model": primary["model_type"],
                     "msp_calibrated": round(confidence, 6),
+                    "msp_threshold": min_conf,
                     "high_conf_msp_threshold": high_conf_msp,
                     "low_conf_msp_threshold": low_conf_msp,
                     "checks": checks,
@@ -628,12 +594,18 @@ class PredictService:
             {key: value for key, value in item.items() if key not in {"all_probs", "classes"}}
             for item in results
         ]
+        primary_conf = float(primary["confidence"]) if primary["confidence"] is not None else confidence
+        primary_label = primary["predicted_label"] or candidate_label
+
         return {
-            "label": candidate_label if validation_status == "accepted" else None,
-            "candidate_label": candidate_label,
-            "confidence": round(confidence, 6),
+            "label": primary_label if validation_status == "accepted" else None,
+            "candidate_label": primary_label,
+            "confidence": round(primary_conf, 6),
+            "primary_confidence": round(primary_conf, 6),
+            "ensemble_confidence": round(confidence, 6),
             "is_valid_leaf": validation_status == "accepted",
-            "top_k": top_k,
+            "top_k": primary["top_k"] if primary.get("top_k") else top_k,
+            "ensemble_top_k": top_k,
             "model_version": primary["version_name"],
             "primary_model_version_id": primary["model_version_id"],
             "inference_mode": mode,
